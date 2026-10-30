@@ -1,0 +1,15 @@
+name: Keep site awake
+# Render's free plan puts the service to sleep after ~15 minutes without traffic, and the next visitor then sees
+# Render's "waking up" page. A light request every 10 minutes keeps it running.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://smart-tomato-irrigation.onrender.com' }}
+        run: curl --fail --silent --show-error --max-time 60 --retry 3 --retry-delay 10 "$SITE_URL/api/health" > /dev/null
