@@ -8,6 +8,7 @@ const Overview = lazy(() => import('./pages/Overview'))
 const LiveSensors = lazy(() => import('./pages/LiveSensors'))
 const Explain = lazy(() => import('./pages/Explain'))
 const Upload = lazy(() => import('./pages/Upload'))
+const Landing = lazy(() => import('./pages/Landing'))
 const Irrigation = lazy(() => import('./pages/Predictions').then((m) => ({ default: m.Irrigation })))
 const Water = lazy(() => import('./pages/Predictions').then((m) => ({ default: m.Water })))
 const Forecast = lazy(() => import('./pages/Predictions').then((m) => ({ default: m.Forecast })))
@@ -42,7 +43,8 @@ const readTheme = (): Theme => {
 }
 
 export default function App() {
-  const [page, setPage] = useState<string>(() => { const h = location.hash.slice(1); return PAGES.some((p) => p[0] === h) ? h : 'overview' })
+  const fromHash = () => { const h = location.hash.slice(1); return PAGES.some((p) => p[0] === h) ? h : 'home' }
+  const [page, setPage] = useState<string>(fromHash)
   const [open, setOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(readTheme)
   const pred = useApi('/api/predictions/run', { method: 'POST', every: 5 * 60_000 })
@@ -50,8 +52,14 @@ export default function App() {
   const latest = useApi('/api/sensors/latest', { every: 10_000 })
   const farm = useApi('/api/farm')
   const health = useApi('/api/health', { every: 30_000 })
-  const current = PAGES.find((p) => p[0] === page)!
+  const current = PAGES.find((p) => p[0] === page) ?? PAGES[0]
   const Page = current[3]
+  const go = (id: string) => { setPage(id); location.hash = id; window.scrollTo({ top: 0 }) }
+  useEffect(() => {
+    const onHash = () => { setPage(fromHash()); window.scrollTo({ top: 0 }) }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
   const offline = !!health.error && !health.data
 
   useEffect(() => {
@@ -61,16 +69,25 @@ export default function App() {
   }, [theme])
   const nextTheme = () => setTheme(theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system')
 
+  if (page === 'home') {
+    return (
+      <Ctx.Provider value={{ pred, status, latest, farm, health }}>
+        <Suspense fallback={<div className="state"><span className="spinner" /></div>}><Landing go={go} /></Suspense>
+        <Toaster />
+      </Ctx.Provider>
+    )
+  }
+
   return (
     <Ctx.Provider value={{ pred, status, latest, farm, health }}>
       <div className="shell">
         {open && <div className="scrim" onClick={() => setOpen(false)} />}
         <aside className={`side ${open ? 'open' : ''}`}>
-          <div className="brand"><span className="logo">🍅</span><div><b>TomatoIQ</b><small>Adaptive drip irrigation</small></div></div>
+          <button className="brand" onClick={() => go('home')} title="Back to the home page"><span className="logo">🍅</span><div><b>TomatoIQ</b><small>Adaptive drip irrigation</small></div></button>
           <nav aria-label="Sections">
             {PAGES.map(([id, label, icon]) => (
               <button key={id} className={page === id ? 'active' : ''} aria-current={page === id ? 'page' : undefined}
-                onClick={() => { setPage(id); location.hash = id; setOpen(false) }}>
+                onClick={() => { go(id); setOpen(false) }}>
                 <Icon name={icon} />{label}
               </button>
             ))}

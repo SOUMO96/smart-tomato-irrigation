@@ -149,3 +149,4 @@ table.cm { width: auto; } table.cm td { text-align: center; font-size: 20px; fon
 .drop:hover, .drop.over { border-color: var(--brand); background: var(--brand-l); } .drop span { color: var(--muted); font-size: 13px; }
 .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; } .tag.yes { background: #fff0dc; color: #8a4b00; } .tag.no { background: var(--brand-l); color: var(--brand-d); }
 tr.bad-row td { background: #fde8e6; color: #7d2118; }
+button.brand { background: none; border: 0; color: inherit; text-align: left; cursor: pointer; font: inherit; width: 100%; }
