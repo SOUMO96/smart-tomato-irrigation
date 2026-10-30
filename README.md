@@ -86,3 +86,10 @@ X-API-Key: <DEVICE_API_KEY>
 `timestamp` and `rainfall` are optional. Out-of-range values are stored but flagged invalid and never used. Then set *Sensor source = Physical device* in Settings.
 Calibrate the capacitive probe to the dataset's 0–100 % relative scale before using thresholds or ML. Physical pump control is intentionally disabled:
 `backend/app/hardware.py` contains the adapter interface and an `Esp32Pump` placeholder that refuses to run until real hardware configuration (relay endpoint, fail-closed wiring) is implemented.
+
+## Deployment (Render, auto-updating)
+`render.yaml` defines one Docker web service (API + built dashboard). Connect the repository once at
+https://render.com/deploy?repo=https://github.com/SOUMO96/smart-tomato-irrigation and every push to `main` redeploys the site
+(tests and build also run in GitHub Actions). On the free plan the service sleeps when idle (first load takes about a minute) and the SQLite
+database resets on each deploy; demo history is re-seeded as clearly-labelled simulated data. Use a persistent disk or a hosted database for real data.
+Set `DEVICE_API_KEY` in the Render dashboard (generated automatically) and use it in the ESP32 firmware.
