@@ -20,6 +20,42 @@ const toCsv = (rows: any[]) => {
   return [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n')
 }
 
+const COLUMNS: [string, string, string, string, string][] = [
+  ['Soil moisture', 'Required', '% (0 to 100)', 'soil_moisture, moisture, sm', '41.5'],
+  ['Air temperature', 'Required', '°C (-10 to 60)', 'air_temp, temperature, temp', '27.3'],
+  ['Air humidity', 'Required', '% (0 to 100)', 'humidity, rh, relative_humidity', '58'],
+  ['Soil temperature', 'Required', '°C (-5 to 60)', 'soil_temp, soil_temperature', '24.1'],
+  ['Timestamp', 'Optional, strongly recommended', 'date and time, e.g. 2026-06-01 10:00', 'timestamp, time, datetime, date', '2026-06-01 10:00'],
+  ['Rainfall', 'Optional (needs timestamp)', 'mm that fell in that row's interval', 'rainfall, rain, precipitation', '0.4'],
+  ['Wind speed', 'Optional', 'km/h', 'wind_speed, wind', '8'],
+  ['Solar radiation', 'Optional', 'W/m² (direct)', 'solar_radiation, radiation', '450'],
+  ['Irrigation minutes', 'Optional (needs timestamp)', 'minutes the pump ran in that row's interval', 'irrigation_minutes, pump_minutes', '0'],
+]
+
+function Guide() {
+  return (
+    <Card title="What your CSV should contain" className="span-3">
+      <p className="note">One row per measurement, one column per quantity, with a header row in the first line. Comma, semicolon or tab separated all work.</p>
+      <div className="table-wrap"><table>
+        <thead><tr><th>Data</th><th>Needed?</th><th>Unit / valid range</th><th>Accepted column names</th><th>Example</th></tr></thead>
+        <tbody>{COLUMNS.map(([a, b, c, d, e]) => <tr key={a}><td><b>{a}</b></td><td>{b}</td><td>{c}</td><td>{d}</td><td>{e}</td></tr>)}</tbody>
+      </table></div>
+      <h4>Example file</h4>
+      <pre className="code">{`timestamp,soil_moisture,air_temp,humidity,soil_temp,rainfall,wind_speed,solar_radiation,irrigation_minutes
+2026-06-01 06:00,48.2,19.5,72,18.1,0,6,40,0
+2026-06-01 07:00,46.9,21.0,66,18.6,0,8,180,0
+2026-06-01 08:00,45.1,23.4,58,19.4,0,9,350,0`}</pre>
+      <ul className="note">
+        <li>Soil moisture must be on the same relative 0 to 100 % probe scale the models were trained on (a capacitive probe calibrated dry = 0, saturated = 100).</li>
+        <li>Include a timestamp and keep readings regular (for example hourly). The models use moisture from 1, 3, 6 and 24 hours earlier, so about a day of history gives the best forecasts.</li>
+        <li>Rows with a missing or impossible required value are reported as invalid and are not predicted. Optional inputs you leave out are replaced by typical training values.</li>
+        <li>Leave temperatures in °C and wind in km/h. Do not convert to other units.</li>
+        <li>Maximum 5,000 rows and 3 MB per file; extra columns are ignored.</li>
+      </ul>
+    </Card>
+  )
+}
+
 export default function Upload() {
   const [file, setFile] = useState<{ name: string; text: string } | null>(null)
   const [res, setRes] = useState<any>(null)
@@ -74,6 +110,8 @@ export default function Upload() {
           {err && <span className="err-msg">{err}</span>}
         </div>
       </Card>
+
+      <Guide />
 
       {!res && !err && <Card className="span-3"><Empty>Results will appear here after you run predictions.</Empty></Card>}
 

@@ -94,3 +94,9 @@ https://render.com/deploy?repo=https://github.com/SOUMO96/smart-tomato-irrigatio
 (tests and build also run in GitHub Actions). On the free plan the service sleeps when idle (first load takes about a minute) and the SQLite
 database resets on each deploy; demo history is re-seeded as clearly-labelled simulated data. Use a persistent disk or a hosted database for real data.
 Set `DEVICE_API_KEY` in the Render dashboard (generated automatically) and use it in the ESP32 firmware.
+
+## CSV format for "Predict Your Data"
+Header row plus one row per measurement. Required: soil moisture (%, 0-100), air temperature (°C), humidity (%), soil temperature (°C).
+Optional: timestamp (e.g. `2026-06-01 10:00`; needed for hour-of-day, past-moisture, rain and irrigation features), rainfall (mm per row interval), wind speed (km/h),
+solar radiation (W/m²), irrigation minutes (pump minutes per row interval). Common column names are matched automatically. Limit 5,000 rows / 3 MB.
+Soil moisture must be on the dataset's relative 0-100 probe scale. A template is available from the page or `GET /api/predictions/batch/template`.
