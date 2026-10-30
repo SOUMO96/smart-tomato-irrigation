@@ -57,7 +57,7 @@ export default function App() {
   const [page, setPage] = useState<string>(fromHash)
   const [open, setOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(readTheme)
-  const pred = useApi('/api/predictions/run', { method: 'POST', every: 5 * 60_000 })
+  const pred = useApi('/api/predictions/current', { every: 60_000 })
   const status = useApi('/api/irrigation/status', { every: 10_000 })
   const latest = useApi('/api/sensors/latest', { every: 10_000 })
   const farm = useApi('/api/farm')
@@ -71,6 +71,11 @@ export default function App() {
     const onHash = () => { setPage(fromHash()); window.scrollTo({ top: 0 }) }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  useEffect(() => {
+    // fetch the other pages' code in the background once the first screen is up, so switching pages feels instant
+    const idle: (f: () => void) => void = (window as any).requestIdleCallback ?? ((f) => setTimeout(f, 1500))
+    idle(() => { import('./pages/Overview'); import('./pages/Predictions'); import('./pages/Other'); import('./pages/LiveSensors'); import('./pages/Upload'); import('./pages/Explain') })
   }, [])
   useEffect(() => {
     if (theme === 'system') delete document.documentElement.dataset.theme

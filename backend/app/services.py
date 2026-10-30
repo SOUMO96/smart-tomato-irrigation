@@ -1,5 +1,6 @@
 """Builds model inputs from the DB + weather and orchestrates predictions."""
 import math
+import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -95,9 +96,28 @@ def build_inputs(db: Session, s: FarmSettings, r: SensorReading, w: dict) -> dic
     }
 
 
+_pred_cache: dict = {}
+PRED_CACHE_SECONDS = 30
+
+
 def compute_predictions(db: Session, s: FarmSettings | None = None) -> dict:
-    """Run all predictions on the latest reading of the active source. Nothing is fabricated when inputs are missing."""
+    """Cached for a few seconds: repeated page loads reuse the result for the same reading, settings and model set.
+    Sensor freshness is always recomputed so the age shown is current."""
     s = s or get_settings(db)
+    r = active_reading(db, s)
+    state = reading_state(r, s)
+    key = (s.sensor_source, r.id if r else None, s.growth_stage, s.zone_area_m2, s.irrigation_efficiency, s.latitude, s.longitude,
+           s.timezone, get_pump_state(db).running, tuple(sorted(ml.bundles)))
+    hit = _pred_cache.get("v")
+    if hit and hit[0] == key and time.time() - hit[1] < PRED_CACHE_SECONDS:
+        return {**hit[2], "sensor_state": state}
+    result = _compute_predictions(db, s)
+    _pred_cache["v"] = (key, time.time(), result)
+    return result
+
+
+def _compute_predictions(db: Session, s: FarmSettings) -> dict:
+    """Run all predictions on the latest reading of the active source. Nothing is fabricated when inputs are missing."""
     r = active_reading(db, s)
     state = reading_state(r, s)
     w = weather.get_weather(s.latitude, s.longitude, s.timezone, to_local(utcnow(), s.timezone))

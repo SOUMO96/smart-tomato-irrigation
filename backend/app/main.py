@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,6 +38,21 @@ def _control_tick():
         controller.control_step(db)
 
 
+def _store_predictions_tick():
+    """Periodically store a prediction snapshot for the history page (page loads no longer write to the database)."""
+    with SessionLocal() as db:
+        services.store_predictions(db, services.compute_predictions(db))
+
+
+def _warm_up():
+    """Runs once in the background at startup: fetch weather and prime the prediction cache so the first visitor is fast."""
+    try:
+        with SessionLocal() as db:
+            services.store_predictions(db, services.compute_predictions(db))
+    except Exception:
+        log.exception("warm-up failed")
+
+
 def _seed_demo():
     """Fresh deployments (ephemeral disks) start empty: add clearly-labelled SIMULATED history so the demo works immediately."""
     with SessionLocal() as db:
@@ -53,6 +69,10 @@ async def lifespan(app: FastAPI):
     if config.AUTO_SEED:
         _seed_demo()
     tasks = []
+    if config.WARM_UP:
+        tasks.append(asyncio.create_task(asyncio.to_thread(_warm_up)))
+    if config.PREDICTION_SNAPSHOT_SECONDS > 0:
+        tasks.append(asyncio.create_task(_loop(config.PREDICTION_SNAPSHOT_SECONDS, _store_predictions_tick)))
     if config.SIMULATOR_SECONDS > 0:
         tasks.append(asyncio.create_task(_loop(config.SIMULATOR_SECONDS, _sim_tick)))
     if config.CONTROL_LOOP_SECONDS > 0:
@@ -64,6 +84,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Smart Tomato Irrigation API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # JS/CSS/JSON shrink about 4x on the wire
+
+
+@app.middleware("http")
+async def cache_headers(request, call_next):
+    resp = await call_next(request)
+    if request.url.path.startswith("/assets/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"  # hashed filenames: safe to cache for a year
+    elif request.url.path == "/" or request.url.path.endswith(".html"):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 def settings_dict(s: FarmSettings) -> dict:
@@ -215,6 +246,12 @@ def pred_water(db: Session = Depends(get_db)):
 @app.get("/api/predictions/forecast")
 def pred_forecast(db: Session = Depends(get_db)):
     return services.compute_predictions(db)["forecast"]
+
+
+@app.get("/api/predictions/current")
+def current_predictions(db: Session = Depends(get_db)):
+    """All predictions for the latest reading (cached for a few seconds, never writes). Used by the dashboard."""
+    return services.compute_predictions(db)
 
 
 @app.post("/api/predictions/run")

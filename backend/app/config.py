@@ -19,3 +19,5 @@ WEATHER_TTL_SECONDS = int(os.getenv("WEATHER_TTL_SECONDS", "900"))
 sys.path.insert(0, str(ML_DIR / "src"))
 
 AUTO_SEED = os.getenv("AUTO_SEED", "1") == "1"  # add simulated demo history when the database is empty
+PREDICTION_SNAPSHOT_SECONDS = int(os.getenv("PREDICTION_SNAPSHOT_SECONDS", "600"))  # how often a prediction snapshot is stored for history; 0 disables
+WARM_UP = os.getenv("WARM_UP", "1") == "1"  # prime weather and prediction caches at startup

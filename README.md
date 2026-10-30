@@ -57,6 +57,7 @@ cd frontend && npx tsc -b && npm run build
 |---|---|
 | `POST /api/sensors/readings` | ESP32 ingestion (`X-API-Key`), stored as `device` |
 | `GET /api/sensors/latest`, `/api/sensors/readings?hours=24&source=` | Latest/history for the active source |
+| `GET /api/predictions/current` | All predictions for the latest reading (cached a few seconds, read-only; used by the dashboard) |
 | `POST /api/predictions/run` | Compute + store irrigation, water, forecast (+ FAO-56 calc) |
 | `POST /api/predictions/batch` | Predict every row of an uploaded CSV (`{"csv": "..."}`; template at `GET /api/predictions/batch/template`) |
 | `GET /api/predictions/{irrigation,water,forecast,history}` | Compute-only / stored predictions |

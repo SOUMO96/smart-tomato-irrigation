@@ -88,6 +88,7 @@ export function Async<T>({ f, children, empty }: { f: Fetched<T>; children: (d: 
   )
   return (
     <>
+      {f.stale && !f.error && <span className="updating" role="status"><i className="mini-spin" /> updating…</span>}
       {f.error && <div className="banner warn">Showing last data. Refresh failed: {f.error}</div>}
       {empty?.(f.data) ? <Empty>No data yet.</Empty> : children(f.data)}
     </>

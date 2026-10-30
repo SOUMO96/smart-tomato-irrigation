@@ -173,8 +173,8 @@ export default function Landing({ go }: { go: (p: string) => void }) {
         <div className="hero-shade" />
         <div className="hero-copy">
           <span className="eyebrow">IoT · Solar-powered · Machine learning</span>
-          <h1>Water your tomatoes <em>exactly</em> when they need it.</h1>
-          <p>An adaptive drip-irrigation system that reads the soil, checks the weather, predicts what the crop needs next, and irrigates inside strict safety limits.</p>
+          <h1>Precision irrigation for <em>healthier</em> tomato crops.</h1>
+          <p>TomatoIQ monitors soil conditions, reads the weather and forecasts crop water demand, so every litre is applied where and when it is needed, within strict safety limits.</p>
           <div className="hero-cta">
             <button className="lp-btn" onClick={() => go('overview')}>Open the live dashboard <Icon name="forecast" size={18} /></button>
             <button className="lp-btn ghost" onClick={() => go('upload')}>Predict from your data</button>

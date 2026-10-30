@@ -1,4 +1,5 @@
 """Open-Meteo client with TTL cache and stale-cache fallback. Coordinates come from farm settings."""
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -12,7 +13,7 @@ _cache: dict[tuple, tuple[float, dict]] = {}
 
 
 def _fetch(lat: float, lon: float, tz: str) -> dict:
-    r = httpx.get(URL, timeout=8.0, params={
+    r = httpx.get(URL, timeout=6.0, params={
         "latitude": lat, "longitude": lon, "timezone": tz, "past_days": 2, "forecast_days": 2,
         "hourly": HOURLY, "wind_speed_unit": "kmh",
         "daily": "et0_fao_evapotranspiration,precipitation_sum"})
@@ -20,11 +21,34 @@ def _fetch(lat: float, lon: float, tz: str) -> dict:
     return r.json()
 
 
+_refreshing: set = set()
+
+
+def _refresh_in_background(key: tuple, lat: float, lon: float, tz: str) -> None:
+    if key in _refreshing:
+        return
+    _refreshing.add(key)
+
+    def run():
+        try:
+            _cache[key] = (time.time(), _fetch(lat, lon, tz))
+        except Exception:
+            pass  # keep serving the older copy
+        finally:
+            _refreshing.discard(key)
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 def get_weather(lat: float, lon: float, tz: str, now_local: datetime | None = None) -> dict:
-    """Returns {"status": ok|stale|unavailable, ...}. Never raises."""
+    """Returns {"status": ok|stale|unavailable, ...}. Never raises. Older cached data is served instantly while a fresh copy loads in the background."""
     key = (round(lat, 3), round(lon, 3), tz)
     hit = _cache.get(key)
-    if hit and time.time() - hit[0] < config.WEATHER_TTL_SECONDS:
+    age = time.time() - hit[0] if hit else None
+    if hit and age < config.WEATHER_TTL_SECONDS:
+        return summarize(hit[1], "ok", now_local, cached=True)
+    if hit and age < 6 * 3600:
+        _refresh_in_background(key, lat, lon, tz)
         return summarize(hit[1], "ok", now_local, cached=True)
     try:
         raw = _fetch(lat, lon, tz)

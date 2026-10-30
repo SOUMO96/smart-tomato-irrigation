@@ -9,12 +9,14 @@ os.environ["DATABASE_URL"] = f"sqlite:///{Path(_tmp) / 'test.db'}"
 os.environ["CONTROL_LOOP_SECONDS"] = "0"
 os.environ["SIMULATOR_SECONDS"] = "0"
 os.environ["AUTO_SEED"] = "0"
+os.environ["WARM_UP"] = "0"
+os.environ["PREDICTION_SNAPSHOT_SECONDS"] = "0"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import weather  # noqa: E402
+from app import services, weather  # noqa: E402
 from app.db import Base, SessionLocal, engine, init_db, utcnow  # noqa: E402
 from app.main import app  # noqa: E402
 from app.ml_service import ml  # noqa: E402
@@ -40,6 +42,7 @@ def fresh_db(monkeypatch):
     init_db()
     ml.load()
     weather._cache.clear()
+    services._pred_cache.clear()
     monkeypatch.setattr(weather, "_fetch", fake_weather_raw)
     yield
 

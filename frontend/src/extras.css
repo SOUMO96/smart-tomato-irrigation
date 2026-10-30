@@ -57,3 +57,6 @@
   .lp .hero p { font-size: 16px; }
   .lp .hero-cta .lp-btn { flex: 1 1 100%; justify-content: center; }
 }
+
+/* shown while a saved copy of the data is displayed and a fresh one is loading */
+.updating { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); align-self: flex-start; }
