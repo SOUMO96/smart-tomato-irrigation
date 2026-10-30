@@ -56,6 +56,38 @@ def _fetch_any(lat: float, lon: float, tz: str) -> dict:
         return _fetch_metno(lat, lon, tz)
 
 
+def _clear_sky(lat: float, lon: float, t) -> float:
+    """Clear-sky global radiation (W/m²) from sun position."""
+    import math
+    decl = math.radians(23.45) * math.sin(2 * math.pi * (284 + t.timetuple().tm_yday) / 365)
+    ha = math.radians(15 * (t.hour + t.minute / 60 + lon / 15 - 12))
+    sin_el = math.sin(math.radians(lat)) * math.sin(decl) + math.cos(math.radians(lat)) * math.cos(decl) * math.cos(ha)
+    return 1000.0 * max(sin_el, 0) ** 1.15
+
+
+def _nasa_clearness(lat: float, lon: float) -> float | None:
+    """NASA POWER (free, no key): mean clearness (measured / clear-sky radiation) over the latest available week.
+    It runs a few days behind, so it is used only to calibrate the radiation estimate, never as a live value."""
+    try:
+        end = datetime.utcnow() - timedelta(days=3)
+        start = end - timedelta(days=6)
+        r = httpx.get("https://power.larc.nasa.gov/api/temporal/daily/point", timeout=10.0, params={
+            "parameters": "ALLSKY_SFC_SW_DWN", "community": "AG", "latitude": round(lat, 3), "longitude": round(lon, 3),
+            "start": start.strftime("%Y%m%d"), "end": end.strftime("%Y%m%d"), "format": "JSON"})
+        r.raise_for_status()
+        days = {k: v for k, v in r.json()["properties"]["parameter"]["ALLSKY_SFC_SW_DWN"].items() if v is not None and v >= 0}
+        ratios = []
+        for k, mj in days.items():  # MJ/m²/day -> kWh/m²/day
+            kwh = mj / 3.6
+            d0 = datetime.strptime(k, "%Y%m%d")
+            clear_kwh = sum(_clear_sky(lat, lon, d0 + timedelta(hours=h)) for h in range(24)) / 1000.0
+            if clear_kwh > 0:
+                ratios.append(min(kwh / clear_kwh, 1.0))
+        return sum(ratios) / len(ratios) if ratios else None
+    except Exception:
+        return None
+
+
 def _fetch_metno(lat: float, lon: float, tz: str) -> dict:
     """MET Norway fallback (free, no key, tolerant of shared hosts). Converted to the Open-Meteo layout so everything downstream is unchanged.
     It has no solar radiation, soil temperature or ET0: radiation is estimated from sun position and cloud cover (flagged as estimated)."""
@@ -69,6 +101,7 @@ def _fetch_metno(lat: float, lon: float, tz: str) -> dict:
         zone = ZoneInfo(tz)
     except Exception:
         zone = timezone(timedelta(hours=round(lon / 15 * 2) / 2))
+    kt_nasa = _nasa_clearness(lat, lon)
     hourly = {k: [] for k in ("time", "temperature_2m", "relative_humidity_2m", "precipitation", "wind_speed_10m", "direct_radiation",
                               "soil_temperature_0cm", "et0_fao_evapotranspiration")}
     for e in r.json()["properties"]["timeseries"][:72]:
@@ -78,13 +111,8 @@ def _fetch_metno(lat: float, lon: float, tz: str) -> dict:
         n1 = e["data"].get("next_1_hours") or e["data"].get("next_6_hours") or {}
         rain = n1.get("details", {}).get("precipitation_amount", 0.0)
         cloud = (d.get("cloud_area_fraction", 50.0)) / 100.0
-        doy = t.timetuple().tm_yday
-        decl = math.radians(23.45) * math.sin(2 * math.pi * (284 + doy) / 365)
-        hour_utc = t.hour + t.minute / 60 + lon / 15
-        ha = math.radians(15 * (hour_utc - 12))
-        sin_el = math.sin(math.radians(lat)) * math.sin(decl) + math.cos(math.radians(lat)) * math.cos(decl) * math.cos(ha)
-        clear = 1000.0 * max(sin_el, 0) ** 1.15
-        ghi = clear * (1 - 0.75 * cloud ** 3.4)
+        cloud_factor = 1 - 0.75 * cloud ** 3.4
+        ghi = _clear_sky(lat, lon, t) * (cloud_factor if kt_nasa is None else 0.5 * cloud_factor + 0.5 * kt_nasa)
         hourly["time"].append(loc.strftime("%Y-%m-%dT%H:%M"))
         hourly["temperature_2m"].append(d.get("air_temperature"))
         hourly["relative_humidity_2m"].append(d.get("relative_humidity"))
@@ -93,7 +121,7 @@ def _fetch_metno(lat: float, lon: float, tz: str) -> dict:
         hourly["direct_radiation"].append(round(ghi * 0.7, 1))  # rough direct share of global radiation
         hourly["soil_temperature_0cm"].append(None)
         hourly["et0_fao_evapotranspiration"].append(None)
-    return {"latitude": lat, "longitude": lon, "hourly": hourly, "daily": {}, "source": "MET Norway (radiation estimated)"}
+    return {"latitude": lat, "longitude": lon, "hourly": hourly, "daily": {}, "source": "MET Norway + NASA POWER (radiation estimated)" if kt_nasa is not None else "MET Norway (radiation estimated)"}
 
 
 _refreshing: set = set()
