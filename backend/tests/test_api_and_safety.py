@@ -217,11 +217,30 @@ def test_rest_period_between_runs(client, db):
     assert out["action"] == "blocked" and "rest period" in out["reason"]
 
 
-def test_physical_hardware_stays_disabled(db):
-    hardware.set_pump(hardware.Esp32Pump())
+def test_device_pump_fails_closed_and_uses_leases(db):
+    pump = hardware.DevicePump()
+    hardware.set_pump(pump)
     try:
-        res = controller.start_pump(db, "manual")
-        assert res["started"] is False and "disabled" in res["blocked_by"][0]
+        s = services.get_settings(db)
+        s.sensor_source = "simulated"
+        db.commit()
+        res = controller.start_pump(db, "manual")  # physical pump must never run on simulated data
+        assert res["started"] is False and "simulated sensor data" in res["blocked_by"][0]
+        res = pump.start  # offline device: adapter itself refuses
+        try:
+            pump.start(60)
+            raise AssertionError("offline device accepted a start")
+        except hardware.HardwareDisabled:
+            pass
+        pump.poll(False)  # device checks in
+        pump.start(120)
+        assert pump.poll(True)["pump"] is True
+        pump.stop()
+        assert pump.poll(False)["pump"] is False
+        pump.start(0.01)
+        import time as _t
+        _t.sleep(0.05)
+        assert pump.poll(True)["pump"] is False  # expired lease means OFF
     finally:
         hardware.set_pump(hardware.SimulatedPump())
 

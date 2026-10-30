@@ -66,6 +66,8 @@ def _seed_demo():
 async def lifespan(app: FastAPI):
     init_db()
     ml.load()
+    if config.HARDWARE_MODE == "device":
+        hardware.set_pump(hardware.DevicePump())
     if config.AUTO_SEED:
         _seed_demo()
     tasks = []
@@ -106,7 +108,8 @@ def settings_dict(s: FarmSettings) -> dict:
 def health(db: Session = Depends(get_db)):
     db.execute(select(1))
     return {"status": "ok", "time": iso(utcnow()), "models": ml.availability(),
-            "pump": {"adapter": hardware.get_pump().name, "physical_control_enabled": not hardware.get_pump().simulated}}
+            "pump": {"adapter": hardware.get_pump().name, "physical_control_enabled": not hardware.get_pump().simulated,
+                     "device": hardware.get_pump().status() if hasattr(hardware.get_pump(), "status") else None}}
 
 
 @app.get("/api/farm")
@@ -269,6 +272,18 @@ def pred_history(kind: str | None = Query(None, pattern="^(irrigation|water|fore
     if kind:
         q = q.where(PredictionRecord.kind == kind)
     return {"predictions": [p.as_dict() for p in db.scalars(q)]}
+
+
+# ---------------------------------------------------------------- device (ESP32) command channel
+@app.get("/api/device/command")
+def device_command(pump_on: int | None = None, x_api_key: str | None = Header(None)):
+    """Polled by the ESP32 every few seconds with its current relay state. Replies with what the relay must do; an expired lease means OFF."""
+    if x_api_key != config.DEVICE_API_KEY:
+        raise HTTPException(401, "invalid or missing X-API-Key")
+    pump = hardware.get_pump()
+    if not hasattr(pump, "poll"):
+        return {"pump": False, "seconds": 0, "seq": 0, "note": "server is in simulated mode (HARDWARE_MODE=device not set)"}
+    return pump.poll(None if pump_on is None else bool(pump_on))
 
 
 # ---------------------------------------------------------------- irrigation / pump

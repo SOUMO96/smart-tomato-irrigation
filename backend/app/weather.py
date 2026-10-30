@@ -10,15 +10,42 @@ from . import config
 URL = "https://api.open-meteo.com/v1/forecast"
 HOURLY = "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,direct_radiation,soil_temperature_0cm,et0_fao_evapotranspiration"
 _cache: dict[tuple, tuple[float, dict]] = {}
+_cooldown_until = 0.0  # after a 429 / failure, do not call Open-Meteo again until then (shared hosting IPs hit the free limit quickly)
+STALE_OK_S = 48 * 3600
+
+
+def _load_disk():
+    try:
+        import json, pathlib
+        p = pathlib.Path(config.WEATHER_CACHE_FILE)
+        if p.exists():
+            for k, t, raw in json.loads(p.read_text()):
+                _cache[tuple(k)] = (t, raw)
+    except Exception:
+        pass
+
+
+def _save_disk():
+    try:
+        import json, pathlib
+        pathlib.Path(config.WEATHER_CACHE_FILE).write_text(json.dumps([[list(k), t, raw] for k, (t, raw) in _cache.items()]))
+    except Exception:
+        pass
 
 
 def _fetch(lat: float, lon: float, tz: str) -> dict:
+    global _cooldown_until
+    if time.time() < _cooldown_until:
+        raise RuntimeError("Open-Meteo is rate-limiting this server; waiting before retrying")
     r = httpx.get(URL, timeout=6.0, params={
         "latitude": lat, "longitude": lon, "timezone": tz, "past_days": 2, "forecast_days": 2,
         "hourly": HOURLY, "wind_speed_unit": "kmh",
         "daily": "et0_fao_evapotranspiration,precipitation_sum"})
+    if r.status_code == 429:
+        _cooldown_until = time.time() + 15 * 60
     r.raise_for_status()
-    return r.json()
+    data = r.json()
+    return data
 
 
 _refreshing: set = set()
@@ -31,7 +58,7 @@ def _refresh_in_background(key: tuple, lat: float, lon: float, tz: str) -> None:
 
     def run():
         try:
-            _cache[key] = (time.time(), _fetch(lat, lon, tz))
+            _cache[key] = (time.time(), _fetch(lat, lon, tz)); _save_disk()
         except Exception:
             pass  # keep serving the older copy
         finally:
@@ -42,17 +69,19 @@ def _refresh_in_background(key: tuple, lat: float, lon: float, tz: str) -> None:
 
 def get_weather(lat: float, lon: float, tz: str, now_local: datetime | None = None) -> dict:
     """Returns {"status": ok|stale|unavailable, ...}. Never raises. Older cached data is served instantly while a fresh copy loads in the background."""
+    if not _cache:
+        _load_disk()
     key = (round(lat, 3), round(lon, 3), tz)
     hit = _cache.get(key)
     age = time.time() - hit[0] if hit else None
     if hit and age < config.WEATHER_TTL_SECONDS:
         return summarize(hit[1], "ok", now_local, cached=True)
-    if hit and age < 6 * 3600:
+    if hit and age < STALE_OK_S:
         _refresh_in_background(key, lat, lon, tz)
         return summarize(hit[1], "ok", now_local, cached=True)
     try:
         raw = _fetch(lat, lon, tz)
-        _cache[key] = (time.time(), raw)
+        _cache[key] = (time.time(), raw); _save_disk()
         return summarize(raw, "ok", now_local)
     except Exception as exc:  # network down, rate limit, bad coordinates...
         if hit:

@@ -67,9 +67,11 @@ def start_pump(db: Session, trigger: str, duration_min: float | None = None, now
     blockers = start_blockers(db, s, trigger, now)
     if blockers:
         return {"started": False, "blocked_by": blockers}
+    if not hardware.get_pump().simulated and s.sensor_source == "simulated":
+        return {"started": False, "blocked_by": ["a physical pump will not run on simulated sensor data: switch the sensor source to device in Settings"]}
     planned = min(duration_min or s.max_pump_runtime_min, s.max_pump_runtime_min)  # runtime cap always applies
     try:
-        hardware.get_pump().start()
+        hardware.get_pump().start(planned * 60)
     except Exception as exc:
         return {"started": False, "blocked_by": [f"hardware refused: {exc}"]}
     r = services.active_reading(db, s)
