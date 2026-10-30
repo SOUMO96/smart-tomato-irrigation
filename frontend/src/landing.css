@@ -1,6 +1,7 @@
 /* ===== Landing page ===== */
 .lp { --lp-green: #2e7d4f; --lp-dark: #0f2a1b; background: var(--bg); color: var(--ink); overflow-x: hidden; }
-.lp h1, .lp h2, .lp h3 { letter-spacing: -.02em; }
+.lp h1, .lp h2, .lp h3 { letter-spacing: -.015em; }
+.lp h2 { font-family: 'Fraunces', Georgia, 'Times New Roman', serif; font-weight: 500; }
 .lp-sec { padding: 88px 24px; max-width: 1180px; margin: 0 auto; }
 .lp-sec.alt { max-width: none; background: var(--surface-2); border-block: 1px solid var(--line); }
 .lp-sec.alt > * { max-width: 1132px; margin-inline: auto; }
@@ -26,12 +27,13 @@
 /* hero */
 .hero { position: relative; height: 100vh; min-height: 640px; max-height: 920px; overflow: hidden; display: flex; align-items: center; background: #0f4468; --mx: 0; --my: 0; }
 .scene { position: absolute; inset: 0; width: 100%; height: 100%; }
-.hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(6,24,16,.82) 0%, rgba(6,24,16,.5) 42%, rgba(6,24,16,0) 72%); pointer-events: none; }
+.hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,20,14,.8) 0%, rgba(5,20,14,.58) 38%, rgba(5,20,14,.06) 70%), linear-gradient(180deg, rgba(5,20,14,.25), rgba(5,20,14,0) 30%); pointer-events: none; }
 .hero-copy { position: relative; z-index: 2; padding: 0 clamp(24px, 7vw, 110px); max-width: 780px; color: #fff; animation: rise 1s .15s both cubic-bezier(.2,.7,.2,1); }
-.eyebrow { display: inline-block; font-size: 12.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; padding: 6px 12px; border-radius: 99px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35); margin-bottom: 20px; backdrop-filter: blur(6px); }
-.hero h1 { font-size: clamp(38px, 6.2vw, 72px); line-height: 1.02; margin: 0 0 20px; text-shadow: 0 4px 30px rgba(0,0,0,.35); }
-.hero h1 em { font-style: normal; background: linear-gradient(90deg, #a8f0b8, #ffe08a); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.hero p { font-size: clamp(16px, 1.6vw, 20px); line-height: 1.55; max-width: 600px; opacity: .95; margin-bottom: 30px; text-shadow: 0 2px 14px rgba(0,0,0,.4); }
+.eyebrow { display: inline-flex; align-items: center; gap: 12px; font-size: 13.5px; font-weight: 500; letter-spacing: .03em; color: rgba(255,255,255,.82); margin-bottom: 22px; }
+.eyebrow::before { content: ''; width: 30px; height: 1px; background: #8de3ab; }
+.hero h1 { font-family: 'Fraunces', Georgia, 'Times New Roman', serif; font-weight: 500; font-size: clamp(36px, 4.6vw, 60px); line-height: 1.08; letter-spacing: -.015em; margin: 0 0 22px; max-width: 620px; text-shadow: 0 2px 24px rgba(0,0,0,.35); }
+.hero h1 em { font-style: italic; font-weight: 500; color: #c3edcf; }
+.hero p { font-size: clamp(15.5px, 1.35vw, 18px); line-height: 1.65; max-width: 500px; opacity: .88; margin-bottom: 32px; text-shadow: 0 1px 12px rgba(0,0,0,.45); }
 .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; } .hero-cta.center { justify-content: center; }
 .scroll-cue { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 28px; height: 46px; border: 2px solid rgba(255,255,255,.75); border-radius: 16px; background: none; z-index: 2; cursor: pointer; }
 .scroll-cue span { position: absolute; left: 50%; top: 8px; width: 4px; height: 8px; margin-left: -2px; border-radius: 2px; background: #fff; animation: cue 1.6s infinite; }

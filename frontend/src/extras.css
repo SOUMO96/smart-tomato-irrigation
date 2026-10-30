@@ -53,7 +53,7 @@
   .lp .hero-copy { padding: 0 20px 360px; max-width: none; }
   .lp .hero-shade { background: linear-gradient(180deg, rgba(6,24,16,.3), rgba(6,24,16,0) 55%); }
   .lp .scroll-cue { display: none; }
-  .lp .hero h1 { font-size: clamp(34px, 10.5vw, 46px); }
+  .lp .hero h1 { font-size: clamp(31px, 8.8vw, 40px); }
   .lp .hero p { font-size: 16px; }
   .lp .hero-cta .lp-btn { flex: 1 1 100%; justify-content: center; }
 }

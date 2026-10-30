@@ -119,7 +119,8 @@ export default function Scene() {
       <line x1="0" y1="626" x2="1440" y2="626" stroke="#16181a" strokeWidth="6" strokeLinecap="round" />
       <line x1="0" y1="624" x2="1440" y2="624" stroke="#6c757d" strokeWidth="1.4" opacity=".7" />
 
-      {PLANTS.map((x, i) => {
+      {/* on wide screens the copy sits over the left half, so plants stand only on the right where they do not compete with the text */}
+      {(narrow ? PLANTS : PLANTS.filter((x) => x >= 600)).map((x, i) => {
         const s = i % 2 ? 0.72 : 0.8
         return (
           <g key={x}>
