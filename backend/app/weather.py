@@ -45,7 +45,55 @@ def _fetch(lat: float, lon: float, tz: str) -> dict:
         _cooldown_until = time.time() + 15 * 60
     r.raise_for_status()
     data = r.json()
+    data["source"] = "Open-Meteo"
     return data
+
+
+def _fetch_any(lat: float, lon: float, tz: str) -> dict:
+    try:
+        return _fetch(lat, lon, tz)
+    except Exception:
+        return _fetch_metno(lat, lon, tz)
+
+
+def _fetch_metno(lat: float, lon: float, tz: str) -> dict:
+    """MET Norway fallback (free, no key, tolerant of shared hosts). Converted to the Open-Meteo layout so everything downstream is unchanged.
+    It has no solar radiation, soil temperature or ET0: radiation is estimated from sun position and cloud cover (flagged as estimated)."""
+    import math
+    from datetime import timezone
+    r = httpx.get("https://api.met.no/weatherapi/locationforecast/2.0/compact", timeout=8.0, params={"lat": round(lat, 4), "lon": round(lon, 4)},
+                  headers={"User-Agent": "TomatoIQ-irrigation-student-project/1.0 github.com/smart-tomato-irrigation"})
+    r.raise_for_status()
+    try:
+        from zoneinfo import ZoneInfo
+        zone = ZoneInfo(tz)
+    except Exception:
+        zone = timezone(timedelta(hours=round(lon / 15 * 2) / 2))
+    hourly = {k: [] for k in ("time", "temperature_2m", "relative_humidity_2m", "precipitation", "wind_speed_10m", "direct_radiation",
+                              "soil_temperature_0cm", "et0_fao_evapotranspiration")}
+    for e in r.json()["properties"]["timeseries"][:72]:
+        t = datetime.fromisoformat(e["time"].replace("Z", "+00:00"))
+        loc = t.astimezone(zone).replace(tzinfo=None)
+        d = e["data"]["instant"]["details"]
+        n1 = e["data"].get("next_1_hours") or e["data"].get("next_6_hours") or {}
+        rain = n1.get("details", {}).get("precipitation_amount", 0.0)
+        cloud = (d.get("cloud_area_fraction", 50.0)) / 100.0
+        doy = t.timetuple().tm_yday
+        decl = math.radians(23.45) * math.sin(2 * math.pi * (284 + doy) / 365)
+        hour_utc = t.hour + t.minute / 60 + lon / 15
+        ha = math.radians(15 * (hour_utc - 12))
+        sin_el = math.sin(math.radians(lat)) * math.sin(decl) + math.cos(math.radians(lat)) * math.cos(decl) * math.cos(ha)
+        clear = 1000.0 * max(sin_el, 0) ** 1.15
+        ghi = clear * (1 - 0.75 * cloud ** 3.4)
+        hourly["time"].append(loc.strftime("%Y-%m-%dT%H:%M"))
+        hourly["temperature_2m"].append(d.get("air_temperature"))
+        hourly["relative_humidity_2m"].append(d.get("relative_humidity"))
+        hourly["precipitation"].append(rain)
+        hourly["wind_speed_10m"].append(None if d.get("wind_speed") is None else d["wind_speed"] * 3.6)
+        hourly["direct_radiation"].append(round(ghi * 0.7, 1))  # rough direct share of global radiation
+        hourly["soil_temperature_0cm"].append(None)
+        hourly["et0_fao_evapotranspiration"].append(None)
+    return {"latitude": lat, "longitude": lon, "hourly": hourly, "daily": {}, "source": "MET Norway (radiation estimated)"}
 
 
 _refreshing: set = set()
@@ -58,7 +106,7 @@ def _refresh_in_background(key: tuple, lat: float, lon: float, tz: str) -> None:
 
     def run():
         try:
-            _cache[key] = (time.time(), _fetch(lat, lon, tz)); _save_disk()
+            _cache[key] = (time.time(), _fetch_any(lat, lon, tz)); _save_disk()
         except Exception:
             pass  # keep serving the older copy
         finally:
@@ -80,7 +128,7 @@ def get_weather(lat: float, lon: float, tz: str, now_local: datetime | None = No
         _refresh_in_background(key, lat, lon, tz)
         return summarize(hit[1], "ok", now_local, cached=True)
     try:
-        raw = _fetch(lat, lon, tz)
+        raw = _fetch_any(lat, lon, tz)
         _cache[key] = (time.time(), raw); _save_disk()
         return summarize(raw, "ok", now_local)
     except Exception as exc:  # network down, rate limit, bad coordinates...
@@ -116,5 +164,6 @@ def summarize(raw: dict, status: str, now_local: datetime | None, cached=False, 
         "et0_today_mm": None if di is None else d["et0_fao_evapotranspiration"][di],
         "rain_today_mm": None if di is None else d["precipitation_sum"][di],
         "forecast_rain_next_24h": float(sum(x or 0 for x in h["precipitation"][idx + 1: idx + 25])),
+        "source": raw.get("source", "Open-Meteo"),
         "units": {"temp": "°C", "wind": "km/h", "radiation": "W/m² (direct)", "rain": "mm"},
     }
