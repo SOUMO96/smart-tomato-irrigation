@@ -81,3 +81,9 @@ class WhatIf(BaseModel):
     sm_lag_3h: float | None = Field(None, ge=0, le=100)
     sm_lag_6h: float | None = Field(None, ge=0, le=100)
     sm_lag_24h: float | None = Field(None, ge=0, le=100)
+
+
+class BatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    csv: str = Field(min_length=10, max_length=3_000_000, description="CSV text with a header row")
+    filename: str | None = Field(None, max_length=200)

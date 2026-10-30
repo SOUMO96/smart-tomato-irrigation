@@ -43,7 +43,7 @@ Fixed seed, no hyper-parameter search. Results are in `docs/FINAL_IMPLEMENTATION
 
 ## Tests
 ```bash
-cd backend && python -m pytest -q        # 33 tests: dataset/preprocessing, saved models, API, DB, invalid/missing data, weather outage, pump safety
+cd backend && python -m pytest -q        # 38 tests: dataset/preprocessing, saved models, API, DB, invalid/missing data, weather outage, pump safety
 cd frontend && npx tsc -b && npm run build
 ```
 
@@ -58,6 +58,7 @@ cd frontend && npx tsc -b && npm run build
 | `POST /api/sensors/readings` | ESP32 ingestion (`X-API-Key`), stored as `device` |
 | `GET /api/sensors/latest`, `/api/sensors/readings?hours=24&source=` | Latest/history for the active source |
 | `POST /api/predictions/run` | Compute + store irrigation, water, forecast (+ FAO-56 calc) |
+| `POST /api/predictions/batch` | Predict every row of an uploaded CSV (`{"csv": "..."}`; template at `GET /api/predictions/batch/template`) |
 | `GET /api/predictions/{irrigation,water,forecast,history}` | Compute-only / stored predictions |
 | `GET /api/irrigation/status`, `/history` | Pump + limits / event log |
 | `POST /api/irrigation/{start,stop,emergency-stop,emergency-reset}` | Manual control (always available; capped runtime) |

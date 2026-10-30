@@ -235,3 +235,44 @@ def test_what_if_and_dataset_samples(client):
     s = client.get("/api/dataset/samples", params={"table": "reg", "n": 3}).json()
     assert len(s["samples"]) == 3 and "water_l" in s["stats"]
     assert client.get("/api/dataset/samples", params={"table": "x"}).status_code == 422
+
+
+# ------------------------------------------------------------ user-supplied dataset (batch)
+def _csv(rows, header="timestamp,Soil Moisture,Temperature,Humidity,Soil Temperature,Rainfall"):
+    return header + chr(10) + chr(10).join(rows)
+
+
+def test_batch_predicts_with_aliases_and_time_features(client):
+    rows = [f"2026-06-01 {h:02d}:00,{50 - h},{20 + h},60,18,0" for h in range(0, 24)]
+    r = client.post("/api/predictions/batch", json={"csv": _csv(rows)}).json()
+    assert r["summary"]["valid_rows"] == 24 and r["summary"]["invalid_rows"] == 0
+    assert r["columns"]["detected"]["soil_moisture"] == "Soil Moisture" and r["columns"]["has_time"]
+    p = r["predictions"][12]
+    assert 0 <= p["irrigation_probability"] <= 1 and p["litres_if_irrigated"] >= 0 and 0 <= p["forecast_6h"] <= 100
+    assert "sm_lag_1h" not in r["features_not_supplied"]["forecast"]  # derived from timestamps
+
+
+def test_batch_flags_invalid_rows_and_never_predicts_them(client):
+    rows = ["2026-06-01 06:00,40,20,60,18,0", "2026-06-01 07:00,999,20,60,18,0", "2026-06-01 08:00,,20,60,18,0"]
+    r = client.post("/api/predictions/batch", json={"csv": _csv(rows)}).json()
+    assert [x["status"] for x in r["predictions"]] == ["ok", "invalid", "invalid"]
+    assert r["predictions"][1]["irrigation_probability"] is None and "soil_moisture" in r["predictions"][1]["reason"]
+
+
+def test_batch_rejects_missing_columns_and_bad_input(client):
+    bad = client.post("/api/predictions/batch", json={"csv": "a,b\n1,2\n3,4\n"})
+    assert bad.status_code == 422 and "Required column" in bad.json()["detail"]
+    assert client.post("/api/predictions/batch", json={"csv": "short"}).status_code == 422
+    big = _csv([f"2026-01-01 00:00,40,20,60,18,0" for _ in range(5001)])
+    assert client.post("/api/predictions/batch", json={"csv": big}).status_code == 422
+
+
+def test_batch_without_timestamp_is_degraded_but_works(client):
+    r = client.post("/api/predictions/batch", json={"csv": "moisture,temp,rh,soil_temp\n30,25,50,20\n60,18,70,15\n"}).json()
+    assert r["summary"]["valid_rows"] == 2 and not r["columns"]["has_time"]
+    assert "sm_lag_1h" in r["features_not_supplied"]["forecast"] and r["columns"]["notes"]
+
+
+def test_batch_template_endpoint(client):
+    t = client.get("/api/predictions/batch/template").json()
+    assert client.post("/api/predictions/batch", json={"csv": t["csv"]}).json()["summary"]["invalid_rows"] == 0

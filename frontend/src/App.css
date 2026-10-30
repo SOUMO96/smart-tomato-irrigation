@@ -143,3 +143,9 @@ table.cm { width: auto; } table.cm td { text-align: center; font-size: 20px; fon
   .topbar h1 { font-size: 17px; }
   .toasts { left: 12px; right: 12px; } .toast { max-width: none; }
 }
+
+/* Predict Your Data */
+.drop { border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px; text-align: center; display: flex; flex-direction: column; gap: 4px; cursor: pointer; background: var(--surface-2); transition: border-color .15s, background .15s; }
+.drop:hover, .drop.over { border-color: var(--brand); background: var(--brand-l); } .drop span { color: var(--muted); font-size: 13px; }
+.tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; } .tag.yes { background: #fff0dc; color: #8a4b00; } .tag.no { background: var(--brand-l); color: var(--brand-d); }
+tr.bad-row td { background: #fde8e6; color: #7d2118; }

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import config, controller, hardware, schemas, services, simulator
+from . import batch, config, controller, hardware, schemas, services, simulator
 from .db import FarmSettings, IrrigationEvent, PredictionRecord, SensorReading, SessionLocal, get_db, init_db, iso, utcnow
 from .ml_service import ml
 
@@ -131,6 +131,20 @@ def what_if(body: schemas.WhatIf):
     x["hour_sin"], x["hour_cos"] = math.sin(2 * math.pi * h / 24), math.cos(2 * math.pi * h / 24)
     return {"inputs": body.model_dump(), "irrigation": ml.predict_irrigation(x), "water": ml.predict_water(x),
             "forecast": ml.predict_forecast(x)}
+
+
+@app.get("/api/predictions/batch/template")
+def batch_template():
+    return {"csv": batch.TEMPLATE, "required_columns": batch.REQUIRED, "accepted_names": batch.ALIASES, "max_rows": batch.MAX_ROWS}
+
+
+@app.post("/api/predictions/batch")
+def batch_predict(body: schemas.BatchRequest, db: Session = Depends(get_db)):
+    """Predict for every row of an uploaded CSV. Nothing is stored."""
+    try:
+        return batch.run(ml, body.csv, services.get_settings(db).flow_l_per_min)
+    except batch.BatchError as exc:
+        raise HTTPException(422, str(exc))
 
 
 @app.get("/api/models/performance")

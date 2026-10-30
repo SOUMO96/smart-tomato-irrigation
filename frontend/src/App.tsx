@@ -7,6 +7,7 @@ import './App.css'
 const Overview = lazy(() => import('./pages/Overview'))
 const LiveSensors = lazy(() => import('./pages/LiveSensors'))
 const Explain = lazy(() => import('./pages/Explain'))
+const Upload = lazy(() => import('./pages/Upload'))
 const Irrigation = lazy(() => import('./pages/Predictions').then((m) => ({ default: m.Irrigation })))
 const Water = lazy(() => import('./pages/Predictions').then((m) => ({ default: m.Water })))
 const Forecast = lazy(() => import('./pages/Predictions').then((m) => ({ default: m.Forecast })))
@@ -27,6 +28,7 @@ const PAGES = [
   ['forecast', 'Soil Moisture Forecast', 'forecast', Forecast],
   ['history', 'Irrigation History', 'history', History],
   ['models', 'Model Performance', 'models', Models],
+  ['upload', 'Predict Your Data', 'upload', Upload],
   ['explain', 'How It Works', 'how', Explain],
   ['settings', 'Settings', 'settings', Settings],
 ] as const
