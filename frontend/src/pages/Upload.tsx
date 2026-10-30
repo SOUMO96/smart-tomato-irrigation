@@ -100,7 +100,7 @@ export default function Upload() {
         <div className={`drop ${drag ? 'over' : ''}`} onDragOver={(e) => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); load(e.dataTransfer.files[0]) }} onClick={() => input.current?.click()} role="button" tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') input.current?.click() }}>
-          <input ref={input} type="file" accept=".csv,.txt,text/csv" hidden onChange={(e) => load(e.target.files?.[0])} />
+          <input ref={input} type="file" accept=".csv,.txt,.json,text/csv,application/json" hidden onChange={(e) => load(e.target.files?.[0])} />
           {file ? <><b>{file.name}</b><span>{(file.text.length / 1024).toFixed(0)} KB loaded. Click to choose another file.</span></>
             : <><b>Drop a CSV here, or click to browse</b><span>.csv with a header row</span></>}
         </div>

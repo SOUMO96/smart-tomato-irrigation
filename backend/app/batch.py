@@ -14,17 +14,20 @@ MAX_CHARS = 3_000_000
 
 # canonical name -> accepted column names (after lower-casing and replacing spaces/dashes with "_")
 ALIASES = {
-    "soil_moisture": ["soil_moisture", "moisture", "soilmoisture", "sm", "soil_moisture_pct", "soil_moisture_percent", "soil_humidity", "humidity_percentage"],
+    "soil_moisture": ["soil_moisture_percentage", "moisturepercentage", "moisture_percentage", "soil_moisture", "moisture", "soilmoisture", "sm",
+                      "soil_moisture_pct", "soil_moisture_percent", "soil_humidity", "humidity_percentage", "moisturevalue", "moisture_value"],
     "air_temp": ["air_temp", "air_temperature", "temperature", "temp", "temperature_c", "airtemp"],
     "humidity": ["humidity", "air_humidity", "relative_humidity", "rh", "humidity_pct"],
     "soil_temp": ["soil_temp", "soil_temperature", "soiltemp", "soil_temperature_c"],
-    "timestamp": ["timestamp", "time", "datetime", "date_time", "date", "ts"],
+    "timestamp": ["timestamp", "time", "datetime", "datetimeadded", "date_time", "date", "ts"],
     "rain": ["rainfall", "rain", "precipitation", "rain_mm"],
-    "wind_speed": ["wind_speed", "wind", "windspeed"],
-    "solar_radiation": ["solar_radiation", "radiation", "solar", "shortwave_radiation"],
+    "wind_speed": ["wind_speed", "wind", "windspeed", "windspeedval", "wind_speed_val"],
+    "solar_radiation": ["solar_radiation", "solar_radiation_ghi", "solar_radiation_ghi_val", "solarradiation_ghi_val", "ghi", "radiation", "solar", "shortwave_radiation"],
     "irrigation_minutes": ["irrigation_minutes", "irrigated_min", "pump_minutes", "irrigation_duration_minutes"],
 }
-REQUIRED = ["soil_moisture", "air_temp", "humidity", "soil_temp"]
+REQUIRED = ["soil_moisture", "air_temp", "humidity"]  # soil_temp is optional: it is replaced by a typical training value (and flagged) when absent
+MOISTURE_UNITS = ("auto", "percent", "raw_adc", "raw_adc_wet_high")
+ADC_MAX = 1023.0  # 10-bit analogue input (ESP32/Arduino style)
 TEMPLATE = ("timestamp,soil_moisture,air_temp,humidity,soil_temp,rainfall,wind_speed,solar_radiation,irrigation_minutes\n"
             "2026-06-01 06:00,48.2,19.5,72,18.1,0,6,40,0\n2026-06-01 07:00,46.9,21.0,66,18.6,0,8,180,0\n"
             "2026-06-01 08:00,45.1,23.4,58,19.4,0,9,350,0\n2026-06-01 09:00,43.0,25.8,50,20.5,0,10,520,0\n"
@@ -65,6 +68,16 @@ def build_features(raw: pd.DataFrame, flow_l_per_min: float) -> tuple[pd.DataFra
     df = pd.DataFrame({k: _num(raw[v]) for k, v in found.items() if k != "timestamp"})
     df["row"] = np.arange(1, len(raw) + 1)
     notes = []
+
+    sm = df["soil_moisture"]
+    if sm.median(skipna=True) > 100:  # most values above 100: a raw sensor column, not a percentage with a few typos
+        # raw analogue sensor counts (capacitive probe: high = dry). Converted as % = 100 * (1 - raw / 1023), which reproduces
+        # the paired value/percentage columns in sensor logs of this kind (e.g. 614 -> 39.98 %, 335 -> 67.25 %).
+        df["soil_moisture"] = (100.0 * (1.0 - sm / ADC_MAX)).where(sm.between(0, ADC_MAX))
+        notes.append("Soil moisture values above 100 were read as raw 10-bit sensor counts (high = dry) and converted to % with "
+                     "100 x (1 - raw / 1023). If your probe works the other way round, supply a percentage column instead.")
+    if "soil_temp" not in df:
+        notes.append("No soil temperature column: a typical training value is used for it.")
 
     ts = None
     if "timestamp" in found:
@@ -113,6 +126,8 @@ def build_features(raw: pd.DataFrame, flow_l_per_min: float) -> tuple[pd.DataFra
 def _validate(df: pd.DataFrame) -> pd.Series:
     reasons = pd.Series("", index=df.index, dtype=object)
     for k, (lo, hi) in LIMITS.items():
+        if k not in df:
+            continue
         bad = df[k].isna() | ~df[k].between(lo, hi)
         reasons = reasons.where(~bad | (reasons != ""), f"{k} missing or outside [{lo:g}, {hi:g}]")
     return reasons
@@ -126,9 +141,12 @@ def run(ml: MLService, csv_text: str, flow_l_per_min: float) -> dict:
     if len(csv_text) > MAX_CHARS:
         raise BatchError(f"File too large (limit {MAX_CHARS // 1_000_000} MB).")
     try:
-        raw = pd.read_csv(io.StringIO(csv_text), sep=None, engine="python")
+        if csv_text.lstrip().startswith(("[", "{")):
+            raw = pd.read_json(io.StringIO(csv_text))  # JSON list of readings
+        else:
+            raw = pd.read_csv(io.StringIO(csv_text), sep=None, engine="python")
     except Exception as exc:
-        raise BatchError(f"Could not read the file as CSV: {str(exc)[:120]}")
+        raise BatchError(f"Could not read the file as CSV or JSON: {str(exc)[:120]}")
     if raw.empty:
         raise BatchError("The file has no data rows.")
     if len(raw) > MAX_ROWS:
