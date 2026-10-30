@@ -70,7 +70,7 @@ def build_features(raw: pd.DataFrame, flow_l_per_min: float) -> tuple[pd.DataFra
     notes = []
 
     sm = df["soil_moisture"]
-    if sm.median(skipna=True) > 100:  # most values above 100: a raw sensor column, not a percentage with a few typos
+    if sm.notna().any() and (sm.dropna() > 100).mean() >= 0.8:  # nearly all values above 100: a raw sensor column, not a percentage with a few typos
         # raw analogue sensor counts (capacitive probe: high = dry). Converted as % = 100 * (1 - raw / 1023), which reproduces
         # the paired value/percentage columns in sensor logs of this kind (e.g. 614 -> 39.98 %, 335 -> 67.25 %).
         df["soil_moisture"] = (100.0 * (1.0 - sm / ADC_MAX)).where(sm.between(0, ADC_MAX))
