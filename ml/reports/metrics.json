@@ -1,0 +1,394 @@
+{
+  "trained_at": "2026-10-30T10:12:02+00:00",
+  "environment": {
+    "python": "3.14.7",
+    "scikit-learn": "1.9.1",
+    "pandas": "3.1.0",
+    "numpy": "2.5.4",
+    "random_seed": 42
+  },
+  "dataset": {
+    "name": "Soil Moisture, Irrigation Actuator and Weather Dataset from a Multi-Sector Precision-Irrigation",
+    "source": "https://data.mendeley.com/datasets/c837v6p8ph/2",
+    "doi": "10.17632/c837v6p8ph.2",
+    "license": "CC BY 4.0",
+    "authors": "Adamo, Colizzi, Dimauro, Guerriero, Lomonte (University of Salento / University of Bari)",
+    "location": "Arnesano (Lecce, Apulia, Italy); 2025-02 to 2025-09",
+    "raw_path": "ml/data/raw/arnesano",
+    "files_used": [
+      "merged/dataset_zone_1.csv",
+      "merged/dataset_zone_2.csv",
+      "final_irrigation_events.csv"
+    ],
+    "sectors_used": "1 and 2 (open-field tomato, same soil model)",
+    "sectors_excluded": {
+      "3": "potted tomato; probe returned mostly invalid readings (median 0%)",
+      "4": "zucchini",
+      "5": "blueberry"
+    },
+    "weather_source": "Open-Meteo ERA5 reanalysis (weather columns inside the dataset)",
+    "raw_grid_rows_per_sector": 33259,
+    "processed": {
+      "clf_samples.csv": {
+        "rows": 3398,
+        "positive_rate": 0.0639,
+        "features": [
+          "soil_moisture",
+          "air_temp",
+          "humidity",
+          "soil_temp",
+          "rain_6h",
+          "wind_speed",
+          "solar_radiation",
+          "irrigated_min_6h",
+          "hour_sin",
+          "hour_cos"
+        ],
+        "target": "irrigate_next_hour (valve opens within next 60 min)"
+      },
+      "reg_events.csv": {
+        "rows": 176,
+        "features": [
+          "soil_moisture",
+          "air_temp",
+          "humidity",
+          "soil_temp",
+          "rain_24h",
+          "wind_speed",
+          "solar_radiation",
+          "irrigated_l_24h",
+          "hours_since_irrigation",
+          "hour_sin",
+          "hour_cos"
+        ],
+        "target": "water_l = valve-open minutes x 1.1 L/min nominal flow"
+      },
+      "fc_samples.csv": {
+        "rows": 17129,
+        "features": [
+          "soil_moisture",
+          "sm_lag_1h",
+          "sm_lag_3h",
+          "sm_lag_6h",
+          "sm_lag_24h",
+          "irrigated_min_1h",
+          "irrigated_min_6h",
+          "irrigated_min_24h",
+          "air_temp",
+          "humidity",
+          "soil_temp",
+          "rain_24h",
+          "wind_speed",
+          "solar_radiation",
+          "hour_sin",
+          "hour_cos"
+        ],
+        "targets": [
+          "target_1h",
+          "target_6h",
+          "target_12h",
+          "target_24h"
+        ]
+      }
+    },
+    "caveats": [
+      "Irrigation events were reconstructed by the dataset authors from valve telemetry; the farm used threshold-based control (start 40%, stop 60%) so labels reflect that policy, not a crop-physiology optimum.",
+      "Water volume is valve-open time x nominal flow rate, not a flow-meter reading.",
+      "Soil moisture is a relative probe output (0-100 scale), so live probes must be calibrated to the same scale.",
+      "Air temperature, humidity, soil temperature and wind/radiation in the dataset are ERA5 reanalysis values, not on-site sensors.",
+      "Crop growth-stage labels do not exist in the dataset, so growth stage is not an ML feature."
+    ]
+  },
+  "classification": {
+    "task": "Irrigation classification: will the valve open within the next 60 min (given it is closed now)?",
+    "selected": "RandomForest",
+    "compared": [
+      "RandomForest",
+      "HistGradientBoosting"
+    ],
+    "split": {
+      "type": "chronological",
+      "train_rows": 1984,
+      "test_rows": 1414,
+      "cutoff": "2025-06-18 09:50:00",
+      "train_positives": 151,
+      "test_positives": 66
+    },
+    "metrics_test": {
+      "RandomForest": {
+        "accuracy": 0.8798,
+        "precision": 0.1623,
+        "recall": 0.3788,
+        "f1": 0.2273,
+        "confusion_matrix": [
+          [
+            1219,
+            129
+          ],
+          [
+            41,
+            25
+          ]
+        ],
+        "roc_auc": 0.7583
+      },
+      "HistGradientBoosting": {
+        "accuracy": 0.8112,
+        "precision": 0.1179,
+        "recall": 0.4697,
+        "f1": 0.1884,
+        "confusion_matrix": [
+          [
+            1116,
+            232
+          ],
+          [
+            35,
+            31
+          ]
+        ],
+        "roc_auc": 0.7374
+      },
+      "Rule: moisture < 40% (reference)": {
+        "accuracy": 0.9286,
+        "precision": 0.1569,
+        "recall": 0.1212,
+        "f1": 0.1368,
+        "confusion_matrix": [
+          [
+            1305,
+            43
+          ],
+          [
+            58,
+            8
+          ]
+        ]
+      }
+    },
+    "feature_importance": [
+      {
+        "feature": "soil_moisture",
+        "label": "Soil moisture (%)",
+        "importance": 0.01924
+      },
+      {
+        "feature": "wind_speed",
+        "label": "Wind speed (km/h)",
+        "importance": 0.01018
+      },
+      {
+        "feature": "air_temp",
+        "label": "Air temperature (\u00b0C)",
+        "importance": 0.00438
+      },
+      {
+        "feature": "irrigated_min_6h",
+        "label": "Irrigated minutes, past 6 h",
+        "importance": 0.00438
+      },
+      {
+        "feature": "rain_6h",
+        "label": "Rain, past 6 h (mm)",
+        "importance": -0.00099
+      },
+      {
+        "feature": "soil_temp",
+        "label": "Soil temperature (\u00b0C)",
+        "importance": -0.00255
+      },
+      {
+        "feature": "humidity",
+        "label": "Air humidity (%)",
+        "importance": -0.00566
+      },
+      {
+        "feature": "hour_cos",
+        "label": "Time of day (cos)",
+        "importance": -0.01174
+      }
+    ],
+    "features": [
+      "soil_moisture",
+      "air_temp",
+      "humidity",
+      "soil_temp",
+      "rain_6h",
+      "wind_speed",
+      "solar_radiation",
+      "irrigated_min_6h",
+      "hour_sin",
+      "hour_cos"
+    ],
+    "notes": "Positive class = irrigation start. Labels follow the farm's threshold-based controller (start 40%, stop 60%)."
+  },
+  "water_regression": {
+    "task": "Water requirement per irrigation event (litres per zone) from conditions at valve opening",
+    "selected": "RandomForest",
+    "compared": [
+      "RandomForest",
+      "GradientBoosting"
+    ],
+    "split": {
+      "type": "chronological",
+      "train_rows": 132,
+      "test_rows": 44,
+      "cutoff": "2025-06-21 15:38:00"
+    },
+    "metrics_test": {
+      "RandomForest": {
+        "mae_l": 57.303,
+        "rmse_l": 62.864,
+        "r2": 0.0335
+      },
+      "GradientBoosting": {
+        "mae_l": 59.749,
+        "rmse_l": 66.129,
+        "r2": -0.0695
+      },
+      "Baseline: training mean (reference)": {
+        "mae_l": 84.149,
+        "rmse_l": 94.573,
+        "r2": -1.1875
+      }
+    },
+    "feature_importance": [
+      {
+        "feature": "air_temp",
+        "label": "Air temperature (\u00b0C)",
+        "importance": 0.10944
+      },
+      {
+        "feature": "humidity",
+        "label": "Air humidity (%)",
+        "importance": 0.09373
+      },
+      {
+        "feature": "irrigated_l_24h",
+        "label": "Water applied, past 24 h (L)",
+        "importance": 0.09017
+      },
+      {
+        "feature": "soil_temp",
+        "label": "Soil temperature (\u00b0C)",
+        "importance": 0.08106
+      },
+      {
+        "feature": "hours_since_irrigation",
+        "label": "Hours since last irrigation",
+        "importance": 0.07757
+      },
+      {
+        "feature": "solar_radiation",
+        "label": "Direct solar radiation (W/m\u00b2)",
+        "importance": 0.01979
+      },
+      {
+        "feature": "hour_cos",
+        "label": "Time of day (cos)",
+        "importance": 0.01241
+      },
+      {
+        "feature": "soil_moisture",
+        "label": "Soil moisture (%)",
+        "importance": 0.00182
+      }
+    ],
+    "features": [
+      "soil_moisture",
+      "air_temp",
+      "humidity",
+      "soil_temp",
+      "rain_24h",
+      "wind_speed",
+      "solar_radiation",
+      "irrigated_l_24h",
+      "hours_since_irrigation",
+      "hour_sin",
+      "hour_cos"
+    ],
+    "target_range_l": [
+      18.5,
+      568.9
+    ],
+    "notes": "Labels are valve-open time x 1.1 L/min nominal flow (not flow-meter readings). Small sample: interpret R2 with caution."
+  },
+  "forecast": {
+    "task": "Soil-moisture forecast at +1/+6/+12/+24 h from lagged moisture, past irrigation and current weather",
+    "algorithm": "HistGradientBoostingRegressor (one model per horizon); baseline = persistence (moisture stays unchanged)",
+    "split": {
+      "type": "chronological",
+      "cutoff": "2025-06-27 18:40:00",
+      "test": "2025-06-27 to 2025-07-15 (held-out end of active season); rows from 2025-07-15 onward are training-only"
+    },
+    "metrics_test": {
+      "1h": {
+        "model": {
+          "mae": 5.765,
+          "rmse": 7.405
+        },
+        "persistence_baseline": {
+          "mae": 11.399,
+          "rmse": 12.963
+        },
+        "train_rows": 15782,
+        "test_rows": 616
+      },
+      "6h": {
+        "model": {
+          "mae": 8.797,
+          "rmse": 10.383
+        },
+        "persistence_baseline": {
+          "mae": 9.798,
+          "rmse": 12.955
+        },
+        "train_rows": 14688,
+        "test_rows": 289
+      },
+      "12h": {
+        "model": {
+          "mae": 15.247,
+          "rmse": 19.079
+        },
+        "persistence_baseline": {
+          "mae": 10.365,
+          "rmse": 12.288
+        },
+        "train_rows": 13975,
+        "test_rows": 18
+      },
+      "24h": {
+        "model": {
+          "mae": 6.312,
+          "rmse": 7.975
+        },
+        "persistence_baseline": {
+          "mae": 7.637,
+          "rmse": 10.48
+        },
+        "train_rows": 15028,
+        "test_rows": 605
+      }
+    },
+    "features": [
+      "soil_moisture",
+      "sm_lag_1h",
+      "sm_lag_3h",
+      "sm_lag_6h",
+      "sm_lag_24h",
+      "irrigated_min_1h",
+      "irrigated_min_6h",
+      "irrigated_min_24h",
+      "air_temp",
+      "humidity",
+      "soil_temp",
+      "rain_24h",
+      "wind_speed",
+      "solar_radiation",
+      "hour_sin",
+      "hour_cos"
+    ],
+    "notes": "Future weather and future irrigation are NOT inputs: forecasts assume neither is known and reflect typical behaviour in the training season."
+  }
+}

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+frontend/dist/
+backend/data/*.db
+ml/data/raw/arnesano/merged/
+ml/data/raw/*.zip
+*.log

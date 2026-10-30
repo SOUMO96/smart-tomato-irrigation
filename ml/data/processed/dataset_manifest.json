@@ -1,0 +1,92 @@
+{
+  "name": "Soil Moisture, Irrigation Actuator and Weather Dataset from a Multi-Sector Precision-Irrigation",
+  "source": "https://data.mendeley.com/datasets/c837v6p8ph/2",
+  "doi": "10.17632/c837v6p8ph.2",
+  "license": "CC BY 4.0",
+  "authors": "Adamo, Colizzi, Dimauro, Guerriero, Lomonte (University of Salento / University of Bari)",
+  "location": "Arnesano (Lecce, Apulia, Italy); 2025-02 to 2025-09",
+  "raw_path": "ml/data/raw/arnesano",
+  "files_used": [
+    "merged/dataset_zone_1.csv",
+    "merged/dataset_zone_2.csv",
+    "final_irrigation_events.csv"
+  ],
+  "sectors_used": "1 and 2 (open-field tomato, same soil model)",
+  "sectors_excluded": {
+    "3": "potted tomato; probe returned mostly invalid readings (median 0%)",
+    "4": "zucchini",
+    "5": "blueberry"
+  },
+  "weather_source": "Open-Meteo ERA5 reanalysis (weather columns inside the dataset)",
+  "raw_grid_rows_per_sector": 33259,
+  "processed": {
+    "clf_samples.csv": {
+      "rows": 3398,
+      "positive_rate": 0.0639,
+      "features": [
+        "soil_moisture",
+        "air_temp",
+        "humidity",
+        "soil_temp",
+        "rain_6h",
+        "wind_speed",
+        "solar_radiation",
+        "irrigated_min_6h",
+        "hour_sin",
+        "hour_cos"
+      ],
+      "target": "irrigate_next_hour (valve opens within next 60 min)"
+    },
+    "reg_events.csv": {
+      "rows": 176,
+      "features": [
+        "soil_moisture",
+        "air_temp",
+        "humidity",
+        "soil_temp",
+        "rain_24h",
+        "wind_speed",
+        "solar_radiation",
+        "irrigated_l_24h",
+        "hours_since_irrigation",
+        "hour_sin",
+        "hour_cos"
+      ],
+      "target": "water_l = valve-open minutes x 1.1 L/min nominal flow"
+    },
+    "fc_samples.csv": {
+      "rows": 17129,
+      "features": [
+        "soil_moisture",
+        "sm_lag_1h",
+        "sm_lag_3h",
+        "sm_lag_6h",
+        "sm_lag_24h",
+        "irrigated_min_1h",
+        "irrigated_min_6h",
+        "irrigated_min_24h",
+        "air_temp",
+        "humidity",
+        "soil_temp",
+        "rain_24h",
+        "wind_speed",
+        "solar_radiation",
+        "hour_sin",
+        "hour_cos"
+      ],
+      "targets": [
+        "target_1h",
+        "target_6h",
+        "target_12h",
+        "target_24h"
+      ]
+    }
+  },
+  "caveats": [
+    "Irrigation events were reconstructed by the dataset authors from valve telemetry; the farm used threshold-based control (start 40%, stop 60%) so labels reflect that policy, not a crop-physiology optimum.",
+    "Water volume is valve-open time x nominal flow rate, not a flow-meter reading.",
+    "Soil moisture is a relative probe output (0-100 scale), so live probes must be calibrated to the same scale.",
+    "Air temperature, humidity, soil temperature and wind/radiation in the dataset are ERA5 reanalysis values, not on-site sensors.",
+    "Crop growth-stage labels do not exist in the dataset, so growth stage is not an ML feature."
+  ]
+}

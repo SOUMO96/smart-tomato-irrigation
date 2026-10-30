@@ -1,0 +1,13 @@
+# Render Blueprint: one web service (API + dashboard), rebuilt automatically on every push to the main branch.
+services:
+  - type: web
+    name: smart-tomato-irrigation
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: DEVICE_API_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:////tmp/app.db
