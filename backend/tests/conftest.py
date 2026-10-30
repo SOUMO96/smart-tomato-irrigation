@@ -10,6 +10,7 @@ os.environ["CONTROL_LOOP_SECONDS"] = "0"
 os.environ["SIMULATOR_SECONDS"] = "0"
 os.environ["AUTO_SEED"] = "0"
 os.environ["WARM_UP"] = "0"
+os.environ["WEATHER_CACHE_FILE"] = str(Path(_tmp) / "weather_cache.json")
 os.environ["PREDICTION_SNAPSHOT_SECONDS"] = "0"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -42,6 +43,7 @@ def fresh_db(monkeypatch):
     init_db()
     ml.load()
     weather._cache.clear()
+    Path(os.environ["WEATHER_CACHE_FILE"]).unlink(missing_ok=True)
     services._pred_cache.clear()
     monkeypatch.setattr(weather, "_fetch", fake_weather_raw)
     yield

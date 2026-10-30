@@ -102,6 +102,8 @@ def test_weather_failure_degrades_gracefully(client, monkeypatch):
     monkeypatch.setattr(weather, "_fetch", boom)
     monkeypatch.setattr(weather, "_fetch_metno", boom)
     weather._cache.clear()
+    import os, pathlib
+    pathlib.Path(os.environ["WEATHER_CACHE_FILE"]).unlink(missing_ok=True)
     client.post("/api/simulator/tick")
     p = client.post("/api/predictions/run").json()
     assert p["weather"]["status"] == "unavailable"
