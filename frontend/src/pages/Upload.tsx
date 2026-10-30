@@ -26,10 +26,10 @@ const COLUMNS: [string, string, string, string, string][] = [
   ['Air humidity', 'Required', '% (0 to 100)', 'humidity, rh, relative_humidity', '58'],
   ['Soil temperature', 'Required', '°C (-5 to 60)', 'soil_temp, soil_temperature', '24.1'],
   ['Timestamp', 'Optional, strongly recommended', 'date and time, e.g. 2026-06-01 10:00', 'timestamp, time, datetime, date', '2026-06-01 10:00'],
-  ['Rainfall', 'Optional (needs timestamp)', 'mm that fell in that row's interval', 'rainfall, rain, precipitation', '0.4'],
+  ['Rainfall', 'Optional (needs timestamp)', 'mm that fell in that row interval', 'rainfall, rain, precipitation', '0.4'],
   ['Wind speed', 'Optional', 'km/h', 'wind_speed, wind', '8'],
   ['Solar radiation', 'Optional', 'W/m² (direct)', 'solar_radiation, radiation', '450'],
-  ['Irrigation minutes', 'Optional (needs timestamp)', 'minutes the pump ran in that row's interval', 'irrigation_minutes, pump_minutes', '0'],
+  ['Irrigation minutes', 'Optional (needs timestamp)', 'minutes the pump ran in that row interval', 'irrigation_minutes, pump_minutes', '0'],
 ]
 
 function Guide() {
