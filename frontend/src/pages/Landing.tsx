@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useShared } from '../App'
 import { api, fmt, useApi } from '../api'
 import { Icon } from '../icons'
-import Scene, { SoilScene } from '../Scene'
+import Scene from '../Scene'
+import SoilScene from '../SoilScene'
 import '../landing.css'
 
 /** Fades/slides children in once they scroll into view. */
@@ -65,8 +66,26 @@ const FEATURES = [
   ['models', 'Transparent results', 'Real held-out test metrics, dataset source and limitations are published in the app itself.'],
 ] as const
 
+const ZONES = [
+  { key: 'drought', max: 20, tone: 'dry', short: 'Below wilting point', title: 'Too dry: below the wilting point',
+    effects: ['The plant cannot pull water out of the soil, so leaves wilt and may not recover.', 'Flowers and young fruit drop; yield is lost.', 'The soil surface cracks and roots dry out. Prolonged drought can kill the plant.'],
+    system: 'Irrigation is clearly needed. In automatic modes the pump starts (within its runtime cap) and the AI recommends watering.' },
+  { key: 'stress', max: 40, tone: 'dry', short: 'Water stress', title: 'Dry: water stress',
+    effects: ['Growth slows and leaves curl or droop in the afternoon.', 'Uneven watering makes blossom-end rot more likely and fruit stays smaller.', 'This is the zone where the farm in the dataset started irrigating (40%).'],
+    system: 'This is the irrigation zone: below the start threshold the sensor rule starts the pump, and the AI usually agrees.' },
+  { key: 'optimal', max: 60, tone: 'ok', short: 'Comfortable range', title: 'Optimal: roots get water and air',
+    effects: ['Pores hold both water and oxygen, so roots work well.', 'Steady growth and even fruit set.', 'Nothing needs to be done; this is the target band.'],
+    system: 'No action. The pump stays off and the AI predicts no irrigation is needed soon.' },
+  { key: 'excess', max: 80, tone: 'wet', short: 'Too wet', title: 'Overwatered: above field capacity',
+    effects: ['Extra water drains away and carries nutrients with it (leaching), so water and pumping energy are wasted.', 'Roots get less oxygen; leaves can start to yellow.', 'Wet soil and humid foliage raise the risk of fungal diseases.'],
+    system: 'The saturation gate blocks irrigation: the pump will not start above the stop threshold (60%), and a running pump is stopped. The AI cannot override this.' },
+  { key: 'sat', max: 101, tone: 'flood', short: 'Waterlogged', title: 'Waterlogged: roots are suffocating',
+    effects: ['Soil pores fill with water, so roots run out of oxygen and begin to rot (root rot).', 'The plant wilts even though the soil is wet, and leaves turn yellow with brown spots.', 'Fruit can crack after sudden water uptake, and diseases spread quickly. Standing water forms on the surface.'],
+    system: 'Irrigation is blocked completely. If real readings stay this high with no rain or irrigation, check for leaks, drainage problems or a faulty sensor.' },
+] as const
+
 function Explorer() {
-  const [m, setM] = useState(34)
+  const [m, setM] = useState(() => { const q = Number(new URLSearchParams(location.search).get('m')); return Number.isFinite(q) && q > 0 && q <= 100 ? q : 34 })
   const [res, setRes] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
@@ -77,15 +96,24 @@ function Explorer() {
     }, 350)
     return () => clearTimeout(t)
   }, [m])
-  const zone = m < 40 ? ['Dry: irrigation zone', 'dry'] : m < 60 ? ['Comfortable range', 'ok'] : ['Wet: no watering', 'wet']
+  const zone = ZONES.find((z) => m < z.max) ?? ZONES[ZONES.length - 1]
   return (
     <div className="explorer">
-      <div className="ex-vis"><SoilScene moisture={m} dripping={m < 40} /><span className={`ex-zone ${zone[1]}`}>{zone[0]}</span></div>
+      <div className="ex-vis"><SoilScene moisture={m} dripping={m < 40} /><span className={`ex-zone ${zone.tone}`}>{zone.short}</span></div>
       <div className="ex-panel">
         <label htmlFor="mslider">Soil moisture</label>
         <div className="ex-val">{m}<span>%</span></div>
-        <input id="mslider" type="range" min={0} max={100} value={m} onChange={(e) => setM(Number(e.target.value))} />
-        <div className="ex-scale"><span>dry</span><span>40%</span><span>60%</span><span>saturated</span></div>
+        <input id="mslider" type="range" min={0} max={100} value={m} onChange={(e) => setM(Number(e.target.value))} aria-valuetext={`${m} percent, ${zone.title}`} />
+        <div className="zonebar" aria-hidden="true">
+          {ZONES.map((z) => <i key={z.key} className={z.tone} style={{ opacity: z.key === zone.key ? 1 : 0.45 }} />)}
+          <b className="zone-pin" style={{ left: `${m}%` }} />
+        </div>
+        <div className="ex-scale"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span></div>
+        <div className={`conseq ${zone.tone}`} key={zone.key}>
+          <div className="conseq-h"><b>{zone.title}</b></div>
+          <ul>{zone.effects.map((e) => <li key={e}>{e}</li>)}</ul>
+          <p className="conseq-sys"><b>What TomatoIQ does:</b> {zone.system}</p>
+        </div>
         <div className="ex-ai">
           <div className="ex-ai-h">What the trained model says {busy && <i className="mini-spin" />}</div>
           {res && res.irrigation?.status !== 'unavailable' ? (
@@ -97,7 +125,8 @@ function Explorer() {
               </div>
             </>
           ) : <p className="ex-note">{busy ? 'Asking the model…' : 'Start the backend to see live model output.'}</p>}
-          <p className="ex-note">Fixed conditions for this demo: 26 °C, 50 % humidity, 10:00, light wind. The picture is an illustration; the numbers come from the real model.</p>
+          <p className="ex-note">Fixed conditions for this demo: 26 °C, 50 % humidity, 10:00, light wind. The picture is an illustration; the numbers come from the real model.
+            Zone limits (20 / 40 / 60 / 80) follow the dataset's tomato soil model on the probe's 0-100 scale. The effects listed are general agronomy: real damage depends on soil, duration and variety.</p>
         </div>
       </div>
     </div>
@@ -109,6 +138,10 @@ export default function Landing({ go }: { go: (p: string) => void }) {
   const perf = useApi<any>('/api/models/performance')
   const info = useApi<any>('/api/dataset/info')
   const hero = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const f = new URLSearchParams(location.search).get('focus')
+    if (f) setTimeout(() => document.getElementById(f)?.scrollIntoView(), 600)
+  }, [])
 
   const onMove = (e: React.MouseEvent) => {
     const r = hero.current?.getBoundingClientRect()
@@ -173,7 +206,7 @@ export default function Landing({ go }: { go: (p: string) => void }) {
       </section>
 
       <section id="explore" className="lp-sec alt">
-        <Reveal><h2>See how the soil and the model respond</h2><p className="lead">Drag the slider. The soil darkens, the plant wilts when it is too dry, and the trained model gives its answer.</p></Reveal>
+        <Reveal><h2>See how the soil and the model respond</h2><p className="lead">Drag the slider from bone dry to waterlogged. See what too little and too much water do to the soil, roots and fruit, and what the trained model and the safety rules do about it.</p></Reveal>
         <Reveal><Explorer /></Reveal>
       </section>
 

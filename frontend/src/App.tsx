@@ -4,6 +4,7 @@ import { Icon } from './icons'
 import { PageHero, Skeleton, SourceBadge, Toaster } from './ui'
 import './App.css'
 import './design.css'
+import './extras.css'
 
 const Overview = lazy(() => import('./pages/Overview'))
 const LiveSensors = lazy(() => import('./pages/LiveSensors'))
