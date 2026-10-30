@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 /** Layered, animated SVG illustration of a drip-irrigated tomato field. Pure SVG + CSS (no images, no JS animation loop). */
 
 const VP_X = 720, VP_Y = 468 // vanishing point of the crop rows
@@ -58,10 +60,23 @@ export function SceneDefs() {
 const PLANTS = [60, 250, 440, 640, 840, 1040, 1230, 1410]
 const rows = Array.from({ length: 22 }, (_, i) => -10 + i)
 
+/** True on phone-sized screens; the hero crops the artwork differently there so plants and sun keep their proportions. */
+function useNarrow() {
+  const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 760px)').matches)
+  useEffect(() => {
+    const mq = matchMedia('(max-width: 760px)')
+    const on = () => setNarrow(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return narrow
+}
+
 export default function Scene() {
+  const narrow = useNarrow()
   const bottomX = (i: number) => VP_X + (i - 5) * 150
   return (
-    <svg className="scene" viewBox="0 0 1440 760" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Animated illustration of a drip-irrigated tomato field">
+    <svg className="scene" viewBox="0 0 1440 760" preserveAspectRatio={narrow ? 'xMaxYMax slice' : 'xMidYMax slice'} role="img" aria-label="Animated illustration of a drip-irrigated tomato field">
       <SceneDefs />
       <rect width="1440" height="760" fill="url(#sky)" />
 
