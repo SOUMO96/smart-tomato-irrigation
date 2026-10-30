@@ -91,9 +91,9 @@ class FarmSettings(Base):
     __tablename__ = "farm_settings"
     id: Mapped[int] = mapped_column(primary_key=True)
     farm_name: Mapped[str] = mapped_column(String(80), default="Demo tomato farm")
-    latitude: Mapped[float] = mapped_column(Float, default=40.33)   # default = dataset site (Arnesano, Italy); change to your farm
-    longitude: Mapped[float] = mapped_column(Float, default=18.10)
-    timezone: Mapped[str] = mapped_column(String(48), default="Europe/Rome")
+    latitude: Mapped[float] = mapped_column(Float, default=24.6848)   # default = the project farm (Assam, India); the training data itself is from Arnesano, Italy
+    longitude: Mapped[float] = mapped_column(Float, default=92.7510)
+    timezone: Mapped[str] = mapped_column(String(48), default="Asia/Kolkata")
     zone_name: Mapped[str] = mapped_column(String(40), default="Zone 1")
     zone_area_m2: Mapped[float] = mapped_column(Float, default=20.0)  # placeholder: set your real zone area
     growth_stage: Mapped[str] = mapped_column(String(24), default="vegetative")
