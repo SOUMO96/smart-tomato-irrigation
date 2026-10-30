@@ -67,8 +67,10 @@ export default function Scene() {
 
       <g className="px" style={{ ['--k' as string]: 6 }}>
         <circle cx="1130" cy="230" r="360" fill="url(#sunGlow)" className="sun-glow" />
-        <g className="rays" transform="translate(1130 230)">
-          {Array.from({ length: 14 }, (_, i) => <rect key={i} x="-3" y="-120" width="6" height="52" rx="3" fill="#fff3c0" opacity=".45" transform={`rotate(${i * (360 / 14)})`} />)}
+        <g transform="translate(1130 230)">
+          <g className="rays">
+            {Array.from({ length: 14 }, (_, i) => <rect key={i} x="-3" y="-120" width="6" height="52" rx="3" fill="#fff3c0" opacity=".45" transform={`rotate(${i * (360 / 14)})`} />)}
+          </g>
         </g>
         <circle cx="1130" cy="230" r="46" fill="#fff6d0" />
       </g>

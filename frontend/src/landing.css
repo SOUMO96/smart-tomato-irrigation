@@ -40,9 +40,9 @@
 
 /* scene animation */
 .px { transform: translate(calc(var(--mx) * var(--k, 4) * 1px), calc(var(--my) * var(--k, 4) * .5px)); transition: transform .25s ease-out; }
-.rays { animation: spin 60s linear infinite; transform-origin: 1130px 230px; }
+.rays { animation: spin 60s linear infinite; transform-box: fill-box; transform-origin: center; }
 .sun-glow { animation: pulse 6s ease-in-out infinite alternate; transform-origin: 1130px 230px; }
-@keyframes spin { to { transform: translate(1130px, 230px) rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { from { opacity: .8; transform: scale(.96); } to { opacity: 1; transform: scale(1.05); } }
 .cloud { animation: drift 90s linear infinite; } .cloud.c2 { animation-duration: 130s; animation-delay: -40s; } .cloud.c3 { animation-duration: 170s; animation-delay: -90s; }
 @keyframes drift { from { transform: translateX(-300px); } to { transform: translateX(1700px); } }
