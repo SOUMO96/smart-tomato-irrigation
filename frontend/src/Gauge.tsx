@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 /** Semi-circular soil-moisture gauge with dry / optimal / wet zones taken from the farm settings. */
 const CX = 100, CY = 100, R = 78
 
@@ -11,7 +13,8 @@ const arc = (v1: number, v2: number) => {
 }
 
 export default function Gauge({ value, start, stop, label }: { value: number | null; start: number; stop: number; label?: string }) {
-  const [nx, ny] = pt(value ?? 0, R - 14)
+  const [v, setV] = useState(0)
+  useEffect(() => { const t = setTimeout(() => setV(value ?? 0), 60); return () => clearTimeout(t) }, [value])
   const zone = value === null ? 'none' : value < start ? 'dry' : value < stop ? 'ok' : 'wet'
   const text = { none: 'No data', dry: 'Dry: irrigation zone', ok: 'In optimal range', wet: 'Wet: no irrigation' }[zone]
   return (
@@ -22,7 +25,9 @@ export default function Gauge({ value, start, stop, label }: { value: number | n
         <path d={arc(stop, 100)} className="g-wet" />
         {value !== null && (
           <>
-            <line x1={CX} y1={CY} x2={nx} y2={ny} className="g-needle" />
+            <g className="g-needle-g" style={{ transform: `rotate(${(Math.max(0, Math.min(100, v)) / 100) * 180 - 90}deg)`, transformOrigin: `${CX}px ${CY}px` }}>
+              <line x1={CX} y1={CY} x2={CX} y2={CY - (R - 14)} className="g-needle" />
+            </g>
             <circle cx={CX} cy={CY} r="6" className="g-hub" />
           </>
         )}

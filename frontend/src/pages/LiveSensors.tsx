@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useShared } from '../App'
 import { API_URL, api, fmt, fmtTime, useApi } from '../api'
-import { Async, Card, SourceBadge } from '../ui'
+import { AnimatedNumber, Async, Card, SourceBadge } from '../ui'
 
 export const tickTime = (t: number) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -20,6 +20,21 @@ export default function LiveSensors() {
 
   return (
     <div className="grid">
+      <Card title={<>Latest reading <span className="tag-live">LIVE</span></>} right={<SourceBadge source={latest.data?.source} />} className="span-3">
+        <Async f={latest} empty={(d) => !d.reading}>
+          {(d) => (
+            <>
+              <div className="sensor-tiles">
+                {([['Soil moisture', d.reading.soil_moisture, '%', 'var(--c-moist)', 1], ['Air temperature', d.reading.air_temp, '°C', 'var(--c-air)', 1],
+                  ['Humidity', d.reading.humidity, '%', 'var(--c-hum)', 0], ['Soil temperature', d.reading.soil_temp, '°C', 'var(--c-soil)', 1]] as const).map(([l, v, u, c, dec]) => (
+                  <div key={l} className="sensor-tile" style={{ ['--tile' as string]: c }}><small>{l}</small><b><AnimatedNumber value={Number(v)} decimals={dec} /><span className="stat-u">{u}</span></b></div>
+                ))}
+              </div>
+              <p className="note">{d.label}. Updated {fmtTime(d.reading.timestamp)}.</p>
+            </>
+          )}
+        </Async>
+      </Card>
       <Card title="Moisture and temperature history" right={
         <div className="seg">{[6, 24, 72].map((h) => <button key={h} className={hours === h ? 'on' : ''} onClick={() => setHours(h)}>{h} h</button>)}</div>
       } className="span-3">
@@ -31,19 +46,20 @@ export default function LiveSensors() {
                 <p className="note"><SourceBadge source={d.source} /> {d.count} readings in the last {hours} h. Shaded band = optimal moisture range from Settings.</p>
                 <div className="chart">
                   <ResponsiveContainer>
-                    <LineChart data={rows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                    <ComposedChart data={rows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                      <defs><linearGradient id="mG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--c-moist)" stopOpacity={0.35} /><stop offset="1" stopColor="var(--c-moist)" stopOpacity={0} /></linearGradient></defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
                       <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={tickTime} tick={{ fontSize: 11 }} minTickGap={50} />
                       <YAxis yAxisId="l" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
                       <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11 }} unit="°" />
-                      <Tooltip labelFormatter={(t) => tickTime(Number(t))} formatter={(v) => (typeof v === "number" ? v.toFixed(1) : v)} />
+                      <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 12.5 }} labelFormatter={(t) => tickTime(Number(t))} formatter={(v) => (typeof v === "number" ? v.toFixed(1) : v)} />
                       <Legend />
                       <ReferenceArea yAxisId="l" y1={farm.data?.start_threshold ?? 40} y2={farm.data?.stop_threshold ?? 60} fill="var(--zone-ok)" fillOpacity={0.12} ifOverflow="hidden" />
-                      <Line isAnimationActive={false} yAxisId="l" dataKey="moisture" name="Soil moisture (%)" stroke="var(--c-moist)" dot={false} strokeWidth={2.2} />
+                      <Area isAnimationActive={false} yAxisId="l" dataKey="moisture" name="Soil moisture (%)" stroke="var(--c-moist)" strokeWidth={2.4} fill="url(#mG)" />
                       <Line isAnimationActive={false} yAxisId="l" dataKey="humidity" name="Humidity (%)" stroke="var(--c-hum)" dot={false} strokeWidth={1.4} />
                       <Line isAnimationActive={false} yAxisId="r" dataKey="air" name="Air temp (°C)" stroke="var(--c-air)" dot={false} strokeWidth={1.4} />
                       <Line isAnimationActive={false} yAxisId="r" dataKey="soil" name="Soil temp (°C)" stroke="var(--c-soil)" dot={false} strokeWidth={1.4} />
-                    </LineChart>
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </>

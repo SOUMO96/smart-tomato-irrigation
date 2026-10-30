@@ -2,28 +2,51 @@ import { useEffect, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useShared } from '../App'
 import { api, fmt, fmtTime, useApi } from '../api'
-import { Async, Card, SourceBadge, Unavailable, toast } from '../ui'
+import { AnimatedNumber, Async, Card, Ring, SourceBadge, Unavailable, toast } from '../ui'
+import { tipStyle } from './Predictions'
 
 export function History() {
   const ev = useApi<any>('/api/irrigation/history?limit=50', { every: 20_000 })
   const ph = useApi<any>('/api/predictions/history?limit=30', { every: 60_000 })
   return (
     <div className="grid">
-      <Card title="Irrigation events" className="span-3">
+      <Card title="Irrigation summary" className="span-3">
+        <Async f={ev}>
+          {(d) => {
+            const total = d.events.reduce((a: number, e: any) => a + e.estimated_litres, 0)
+            const mins = d.events.reduce((a: number, e: any) => a + e.duration_min, 0)
+            return (
+              <div className="kpis">
+                <div className="kpi"><small>Events recorded</small><b><AnimatedNumber value={d.events.length} /></b></div>
+                <div className="kpi"><small>Estimated water used</small><b>{fmt(total, 0)} L</b></div>
+                <div className="kpi"><small>Total pump time</small><b>{fmt(mins, 0)} min</b></div>
+                <div className="kpi"><small>Average event</small><b>{d.events.length ? fmt(mins / d.events.length, 1) : '—'} min</b></div>
+              </div>
+            )
+          }}
+        </Async>
+      </Card>
+      <Card title="Irrigation timeline" className="span-3">
         <Async f={ev} empty={(d) => d.events.length === 0}>
-          {(d) => (
-            <>
-              <div className="table-wrap"><table>
-                <thead><tr><th>Start</th><th>End</th><th>Minutes</th><th>Est. litres</th><th>Trigger</th><th>Stopped because</th><th>Moisture at start</th><th>Type</th></tr></thead>
-                <tbody>{d.events.map((e: any) => (
-                  <tr key={e.id}><td>{fmtTime(e.start)}</td><td>{e.running ? <b className="on">running</b> : fmtTime(e.end)}</td><td>{fmt(e.duration_min)}</td>
-                    <td>{fmt(e.estimated_litres, 0)}</td><td>{e.trigger.replace('_', ' ')}</td><td>{e.stop_reason ?? '—'}</td>
-                    <td>{fmt(e.moisture_at_start, 0, '%')}</td><td><SourceBadge source={e.simulated ? 'simulated' : 'device'} /></td></tr>
-                ))}</tbody>
-              </table></div>
-              <p className="note">{d.note}</p>
-            </>
-          )}
+          {(d) => {
+            const max = Math.max(...d.events.map((e: any) => e.duration_min), 1)
+            return (
+              <>
+                <div className="tl">{d.events.map((e: any, i: number) => (
+                  <div key={e.id} className={`tl-item ${e.running ? 'run' : ''}`} style={{ animationDelay: `${Math.min(i, 10) * 50}ms` }}>
+                    <div className="tl-h">
+                      <b>{e.running ? 'Running now' : fmtTime(e.start)}</b>
+                      <span className="note">{e.trigger.replace('_', ' ')} • {fmt(e.duration_min)} min • ≈ {fmt(e.estimated_litres, 0)} L • moisture at start {fmt(e.moisture_at_start, 0, '%')}</span>
+                      <SourceBadge source={e.simulated ? 'simulated' : 'device'} />
+                    </div>
+                    <div className="note">{e.running ? 'in progress' : `ended ${fmtTime(e.end)}: ${e.stop_reason ?? '—'}`}</div>
+                    <div className="tl-bar"><i style={{ width: `${(e.duration_min / max) * 100}%` }} /></div>
+                  </div>
+                ))}</div>
+                <p className="note">{d.note}</p>
+              </>
+            )
+          }}
         </Async>
       </Card>
       <Card title="Prediction history" right={<SourceBadge source="predicted" />} className="span-3">
@@ -46,12 +69,20 @@ export function History() {
   )
 }
 
+/** Confusion matrix as a heat grid: green = correct, orange = wrong, intensity = share of that row. */
 function Confusion({ cm }: { cm: number[][] }) {
+  const cell = (r: number, c: number) => {
+    const rowSum = cm[r][0] + cm[r][1] || 1
+    const a = 0.15 + 0.7 * (cm[r][c] / rowSum)
+    const ok = r === c
+    return <div style={{ background: ok ? `rgba(46,125,79,${a})` : `rgba(217,130,43,${a})`, color: 'var(--ink)' }} title={`${Math.round((cm[r][c] / rowSum) * 100)}% of actual ${r ? 'YES' : 'NO'}`}>{cm[r][c]}</div>
+  }
   return (
-    <table className="cm">
-      <thead><tr><th></th><th>Pred. NO</th><th>Pred. YES</th></tr></thead>
-      <tbody><tr><th>Actual NO</th><td>{cm[0][0]}</td><td>{cm[0][1]}</td></tr><tr><th>Actual YES</th><td>{cm[1][0]}</td><td>{cm[1][1]}</td></tr></tbody>
-    </table>
+    <div className="heat">
+      <div className="hl" /><div className="hl">Pred. NO</div><div className="hl">Pred. YES</div>
+      <div className="hl">Actual NO</div>{cell(0, 0)}{cell(0, 1)}
+      <div className="hl">Actual YES</div>{cell(1, 0)}{cell(1, 1)}
+    </div>
   )
 }
 
@@ -70,6 +101,16 @@ export function Models() {
               <div><b>Models</b>{Object.entries(m.models).map(([k, v]: any) => `${k}: ${v.available ? v.algorithm ?? 'loaded' : 'unavailable'}`).join(' • ')}</div>
             </div>
             <ul className="note">{m.dataset.caveats.map((c: string) => <li key={c}>{c}</li>)}</ul>
+          </Card>
+
+          <Card title="Scores at a glance" className="span-3">
+            <div className="metric-rings">
+              <div><Ring value={m.classification.metrics_test[m.classification.selected].f1} label="F1" size={110} stroke={11} color="var(--c-pred)" /><span>A · Irrigation F1</span></div>
+              <div><Ring value={m.classification.metrics_test[m.classification.selected].roc_auc ?? 0} label="AUC" size={110} stroke={11} color="var(--c-hum)" /><span>A · ROC-AUC</span></div>
+              <div><Ring value={m.classification.metrics_test[m.classification.selected].recall} label="recall" size={110} stroke={11} color="var(--c-air)" /><span>A · Recall</span></div>
+              <div><Ring value={Math.max(0, m.water_regression.metrics_test[m.water_regression.selected].r2)} label="R²" size={110} stroke={11} color="var(--brand)" /><span>B · Water R²</span></div>
+            </div>
+            <p className="note">A perfect model would fill every ring. These are real held-out results: the irrigation and water models are modest, and that is stated openly.</p>
           </Card>
 
           <Card title="A · Irrigation classification" className="span-2">
@@ -102,14 +143,14 @@ export function Models() {
           <Card title="Importance (water)"><div className="chart sm"><ResponsiveContainer>
             <BarChart data={m.water_regression.feature_importance} layout="vertical" margin={{ left: 40 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" horizontal={false} /><XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="label" width={120} tick={{ fontSize: 10 }} /><Tooltip /><Bar isAnimationActive={false} dataKey="importance" fill="var(--c-pred)" />
+              <YAxis type="category" dataKey="label" width={120} tick={{ fontSize: 10 }} /><Tooltip contentStyle={tipStyle} /><Bar isAnimationActive={false} dataKey="importance" fill="var(--c-pred)" />
             </BarChart></ResponsiveContainer></div></Card>
 
           <Card title="C · Soil-moisture forecast (MAE / RMSE per horizon)" className="span-3">
             <p className="note">{m.forecast.algorithm}. Test: {m.forecast.split.test}.</p>
             <div className="chart sm"><ResponsiveContainer>
               <BarChart data={Object.entries(m.forecast.metrics_test).map(([h, v]: any) => ({ h, model: v.model.mae, persistence: v.persistence_baseline.mae }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="h" /><YAxis unit="" tick={{ fontSize: 11 }} /><Tooltip /><Legend />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="h" /><YAxis unit="" tick={{ fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend />
                 <Bar isAnimationActive={false} dataKey="model" name="Model MAE" fill="var(--c-pred)" /><Bar isAnimationActive={false} dataKey="persistence" name="Persistence MAE" fill="var(--c-hum)" />
               </BarChart></ResponsiveContainer></div>
             <div className="table-wrap"><table>
@@ -127,7 +168,12 @@ export function Models() {
 }
 
 const STAGES = ['seedling', 'vegetative', 'flowering', 'fruit_development', 'ripening']
-const MODES: [string, string][] = [['manual', 'Manual only'], ['sensor_auto', 'Automatic (sensor thresholds)'], ['ai_recommend', 'AI recommendation (no actuation)'], ['ai_auto', 'AI-assisted automatic']]
+const MODES: [string, string, string][] = [
+  ['manual', 'Manual only', 'You start and stop the pump'],
+  ['sensor_auto', 'Sensor automatic', 'Starts below the start threshold'],
+  ['ai_recommend', 'AI recommendation', 'Advice only, never actuates'],
+  ['ai_auto', 'AI-assisted automatic', 'AI and sensor must agree'],
+]
 
 export function Settings() {
   const { farm, status, latest, pred } = useShared()
@@ -166,11 +212,18 @@ export function Settings() {
       </Card>
       <Card title="Data source and control">
         <div className="form">
-          <label>Sensor data source<select value={f.sensor_source} onChange={(e) => set('sensor_source', e.target.value)}>
-            <option value="simulated">Simulated (development)</option><option value="device">Physical device (ESP32)</option></select>
-            <small>Only the selected source drives predictions and control.</small></label>
-          <label>Control mode<select value={f.control_mode} onChange={(e) => set('control_mode', e.target.value)}>
-            {MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+          <div className="span-form"><span className="lbl">Sensor data source</span>
+            <div className="radio-cards">
+              {([['simulated', 'Simulated', 'Development data, always labelled'], ['device', 'Physical device', 'Readings posted by your ESP32']] as const).map(([v, t, d]) => (
+                <button type="button" key={v} className={`rc ${f.sensor_source === v ? 'on' : ''}`} onClick={() => set('sensor_source', v)}><b>{t}</b><small>{d}</small></button>
+              ))}
+            </div><small>Only the selected source drives predictions and control.</small></div>
+          <div className="span-form"><span className="lbl">Control mode</span>
+            <div className="radio-cards">
+              {MODES.map(([v, l, d]) => (
+                <button type="button" key={v} className={`rc ${f.control_mode === v ? 'on' : ''}`} onClick={() => set('control_mode', v)}><b>{l}</b><small>{d}</small></button>
+              ))}
+            </div></div>
           {num('ai_threshold', 'AI probability threshold', 0.05)}
         </div>
       </Card>

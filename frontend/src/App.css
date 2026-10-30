@@ -53,16 +53,16 @@ tr.sel td { background: var(--brand-l); font-weight: 600; }
 table.cm { width: auto; } table.cm td { text-align: center; font-size: 20px; font-weight: 700; padding: 14px 22px; background: var(--brand-l); }
 .code { background: #10201a; color: #cfe8d7; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; margin: 0; }
 .drivers { display: flex; flex-direction: column; gap: 6px; }
-.driver { display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 60px; gap: 8px; align-items: center; font-size: 12.5px; }
+.driver { display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 84px; gap: 8px; align-items: center; font-size: 12.5px; }
 .d-v small { color: var(--muted); } .d-bar { background: var(--grid); border-radius: 4px; height: 8px; overflow: hidden; } .d-bar i { display: block; height: 100%; }
-.d-bar .pos { background: #d9822b; } .d-bar .neg { background: #5aa9c9; } .d-e { text-align: right; font-variant-numeric: tabular-nums; }
+.d-bar .pos { background: #d9822b; } .d-bar .neg { background: #5aa9c9; } .d-e { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; } .seg button { border: 0; background: none; padding: 4px 12px; font: inherit; color: var(--ink); cursor: pointer; }
 .seg button.on { background: var(--brand); color: #fff; }
 .kv { display: flex; flex-direction: column; gap: 6px; font-size: 13px; } .kv b { display: inline-block; min-width: 80px; color: var(--muted); font-weight: 600; }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; } .form.cols { grid-template-columns: repeat(3, 1fr); }
 .form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .form input, .form select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: var(--surface); color: var(--ink); }
-.form small { font-weight: 400; } .ok-msg { color: var(--good); } .err-msg { color: var(--bad); }
+.form small { font-weight: 400; } .span-form { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; } .lbl { font-size: 12.5px; font-weight: 600; color: var(--muted); } .ok-msg { color: var(--good); } .err-msg { color: var(--bad); }
 
 @media (max-width: 960px) {
   .grid { grid-template-columns: 1fr 1fr; } .span-3 { grid-column: span 2; }

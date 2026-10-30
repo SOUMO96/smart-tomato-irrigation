@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Area, AreaChart, ResponsiveContainer, YAxis } from 'recharts'
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import { useShared } from '../App'
 import { ago, api, fmt, fmtTime, useApi } from '../api'
 import Gauge from '../Gauge'
@@ -51,6 +51,31 @@ function Trend() {
   )
 }
 
+function ClimateTrend() {
+  const r = useApi<any>('/api/sensors/readings?hours=12', { every: 30_000 })
+  const rows = (r.data?.readings ?? []).filter((x: any) => x.valid).map((x: any) => ({ t: new Date(x.timestamp).getTime(), air: x.air_temp, soil: x.soil_temp }))
+  if (rows.length < 3) return null
+  return (
+    <div>
+      <h4>Temperatures, last 12 hours</h4>
+      <div className="chart sm" style={{ height: 170 }}>
+        <ResponsiveContainer>
+          <AreaChart data={rows} margin={{ top: 6, right: 6, left: -22, bottom: 0 }}>
+            <defs>
+              <linearGradient id="airG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--c-air)" stopOpacity={0.35} /><stop offset="1" stopColor="var(--c-air)" stopOpacity={0} /></linearGradient>
+              <linearGradient id="soilG2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--c-soil)" stopOpacity={0.3} /><stop offset="1" stopColor="var(--c-soil)" stopOpacity={0} /></linearGradient>
+            </defs>
+            <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fontSize: 10 }} minTickGap={40} />
+            <YAxis tick={{ fontSize: 10 }} unit="°" domain={['auto', 'auto']} />
+            <Area isAnimationActive={false} dataKey="air" name="Air °C" stroke="var(--c-air)" strokeWidth={2} fill="url(#airG)" />
+            <Area isAnimationActive={false} dataKey="soil" name="Soil °C" stroke="var(--c-soil)" strokeWidth={2} fill="url(#soilG2)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
 export default function Overview() {
   const { pred, status, latest, farm } = useShared()
   const [busy, setBusy] = useState(false)
@@ -91,6 +116,7 @@ export default function Overview() {
                   <Stat label="Last sensor update" value={ago(d.state.age_s)} sub={fmtTime(r.timestamp)} />
                 </div>
                 <p className="note">{d.label}</p>
+                <ClimateTrend />
               </>
             )
           }}
@@ -107,6 +133,7 @@ export default function Overview() {
                       sub={s.pump.running ? `${Math.round(s.pump.runtime_s / 60)} min of max ${Math.round(s.pump.max_runtime_s / 60)}` : 'idle'} />
                 <Stat label="Mode" value={s.mode.replace('_', ' ')} sub={s.pump.emergency_stop ? 'EMERGENCY STOP ACTIVE' : 'safety interlocks armed'} />
               </div>
+              {s.pump.running && <div className="pipe" aria-label="Water flowing (simulated)"><i /></div>}
               <div className="btns">
                 <button className="btn primary" disabled={busy || s.pump.running || s.pump.emergency_stop} onClick={() => act('/api/irrigation/start', 'Pump started (simulated)')}>Start (manual)</button>
                 <button className="btn" disabled={busy || !s.pump.running} onClick={() => act('/api/irrigation/stop', 'Pump stopped')}>Stop</button>
@@ -150,12 +177,12 @@ export default function Overview() {
         <button className="btn" onClick={() => { pred.reload(); toast('Predictions refreshed') }}>Refresh predictions</button>
       </Card>
 
-      <Card title="Weather (Open-Meteo)" right={<SourceBadge source="weather" />}>
+      <Card title="Weather (Open-Meteo)" right={<SourceBadge source="weather" />} className="span-2">
         <Async f={pred}>
           {(p) => p.weather.status === 'unavailable'
             ? <p className="muted">Weather unavailable ({p.weather.error}). Models run in degraded mode without wind, radiation and rain inputs.</p>
             : (
-              <div className="stats two">
+              <div className="stats">
                 <Stat label="Air temp" value={fmt(p.weather.air_temp, 1)} unit="°C" />
                 <Stat label="Rain 24 h" value={fmt(p.weather.rain_24h, 1)} unit="mm" />
                 <Stat label="Wind" value={fmt(p.weather.wind_speed, 0)} unit="km/h" />

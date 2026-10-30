@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Icon } from './icons'
 import type { Fetched } from './api'
 
 /** Data provenance tag. Simulated data must never look like physical sensor data. */
@@ -30,11 +31,33 @@ export function Card({ title, right, children, className = '' }: { title?: React
   )
 }
 
+/** Eases a number from its previous value to the new one. Respects reduced-motion. */
+export function AnimatedNumber({ value, decimals = 0 }: { value: number; decimals?: number }) {
+  const [shown, setShown] = useState(0)
+  const from = useRef(0)
+  useEffect(() => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setShown(value); from.current = value; return }
+    let raf = 0
+    const a = from.current, t0 = performance.now()
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / 900)
+      const v = a + (value - a) * (1 - Math.pow(1 - p, 3))
+      setShown(v); from.current = v
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [value])
+  return <>{shown.toFixed(decimals)}</>
+}
+
 export function Stat({ label, value, unit, sub, badge }: { label: ReactNode; value: ReactNode; unit?: string; sub?: ReactNode; badge?: ReactNode }) {
+  const numeric = typeof value === 'number' || (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value))
+  const decimals = typeof value === 'string' ? (value.split('.')[1]?.length ?? 0) : Number.isInteger(value) ? 0 : 1
   return (
     <div className="stat">
       <div className="stat-l">{label}{badge}</div>
-      <div className="stat-v">{value}{unit && <span className="stat-u">{unit}</span>}</div>
+      <div className="stat-v">{numeric ? <AnimatedNumber value={Number(value)} decimals={decimals} /> : value}{unit && <span className="stat-u">{unit}</span>}</div>
       {sub && <div className="stat-s">{sub}</div>}
     </div>
   )
@@ -92,4 +115,32 @@ export function Toaster() {
     return () => { listeners = listeners.filter((x) => x !== l) }
   }, [])
   return <div className="toasts" role="status">{items.map((t) => <div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>)}</div>
+}
+
+/** Circular progress ring (value 0..1) that animates in. */
+export function Ring({ value, size = 132, stroke = 12, label, color = 'var(--brand)', display }: { value: number; size?: number; stroke?: number; label?: string; color?: string; display?: string }) {
+  const [p, setP] = useState(0)
+  useEffect(() => { const t = setTimeout(() => setP(Math.max(0, Math.min(1, value))), 80); return () => clearTimeout(t) }, [value])
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r
+  return (
+    <div className="ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} className="ring-bg" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} className="ring-fg" strokeWidth={stroke} stroke={color} strokeDasharray={c} strokeDashoffset={c * (1 - p)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      </svg>
+      <div className="ring-t"><b>{display ?? <><AnimatedNumber value={value * 100} />%</>}</b>{label && <small>{label}</small>}</div>
+    </div>
+  )
+}
+
+/** Gradient banner at the top of every dashboard page, with floating shapes and animated drops. */
+export function PageHero({ icon, title, subtitle }: { icon: string; title: string; subtitle: string }) {
+  return (
+    <div className="phero">
+      <i className="blob b1" /><i className="blob b2" /><i className="blob b3" />
+      <div className="phero-drops" aria-hidden="true">{[0, 1, 2, 3, 4].map((i) => <span key={i} style={{ left: `${12 + i * 19}%`, animationDelay: `${i * 0.55}s` }} />)}</div>
+      <div className="phero-ico"><Icon name={icon} size={28} /></div>
+      <div className="phero-t"><h2>{title}</h2><p>{subtitle}</p></div>
+    </div>
+  )
 }
