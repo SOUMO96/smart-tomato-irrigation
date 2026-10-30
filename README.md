@@ -1,103 +1,118 @@
-# IoT-Enabled Solar-Powered Adaptive Drip Irrigation for Tomato (TomatoIQ)
+# IoT-Enabled Solar-Powered Adaptive Drip Irrigation System for Tomato Crops
 
-React + FastAPI dashboard with three ML models trained on a real, public tomato-irrigation dataset, an ESP32-ready
-ingestion API, a simulated pump, and safety-first control logic.
+B.Tech major project. A web dashboard and API that watch soil and weather conditions for a tomato plot, predict when and how much
+to irrigate, and drive a drip-irrigation pump through an ESP32, with safety limits that the machine-learning part cannot override.
+
+Live demo: https://smart-tomato-irrigation.onrender.com (free hosting, so the first load after idle can take about a minute)
+
+## What it does
+
+- Reads soil moisture, air temperature, humidity and soil temperature from an ESP32 (or a clearly labelled simulator when no hardware is connected).
+- Pulls weather for the farm's location (Open-Meteo, with MET Norway and NASA POWER as fallbacks).
+- Three models: whether irrigation is needed in the next hour, how many litres one irrigation event needs, and soil moisture 1, 6, 12 and 24 hours ahead.
+- An FAO-56 crop-water calculation shown next to the ML estimate, so the two can be compared.
+- Four control modes: manual, sensor threshold, AI recommend-only, and AI automatic.
+- Upload your own CSV or JSON of readings and get a prediction for every row.
+- Pages that explain the data, the inputs each model sees, and the real test scores, including where the models are weak.
+
+## Repository layout
 
 ```
-smart-tomato-irrigation/
-  frontend/   React + TypeScript + Vite + Recharts dashboard (8 sections)
-  backend/    FastAPI + SQLAlchemy + SQLite (app/, tests/)
-  ml/         data/raw, data/processed, models/, reports/, src/ (shared features), scripts/
-  docs/       FINAL_IMPLEMENTATION_REPORT.md
+frontend/   React + TypeScript + Vite dashboard
+backend/    FastAPI, SQLAlchemy, SQLite; tests in backend/tests
+ml/         dataset download/prep, training scripts, saved models, reports
+firmware/   ESP32 sketch (sensor upload + pump command polling)
+docs/       final report, hardware notes
 ```
 
-## Install
-Requires Python 3.11+ (tested on 3.14) and Node 20+.
+## Running it locally
+
+Needs Python 3.11 or newer and Node 20 or newer.
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate            # Windows   (Linux/macOS: source .venv/bin/activate)
+.venv\Scripts\activate                 # Linux/macOS: source .venv/bin/activate
 pip install -r backend/requirements.txt
-cd frontend && npm install
-```
+cd frontend && npm install && cd ..
 
-## Run
-```bash
-# terminal 1 - backend (http://127.0.0.1:8000, docs at /docs)
+# terminal 1: API on http://127.0.0.1:8000 (API docs at /docs)
 cd backend && uvicorn app.main:app --port 8000
 
-# terminal 2 - frontend (http://localhost:5173)
+# terminal 2: dashboard on http://localhost:5173
 cd frontend && npm run dev
 ```
-Set `VITE_API_URL` if the backend is elsewhere. Backend env vars: `DEVICE_API_KEY` (default `dev-device-key`),
-`CONTROL_LOOP_SECONDS` (30; 0 disables), `SIMULATOR_SECONDS` (30; 0 disables), `DATABASE_URL`, `CORS_ORIGINS`.
 
-## Train the ML models
-Trained models and `ml/reports/metrics.json` are included. To reproduce:
-```bash
-python ml/scripts/download_dataset.py     # ~42 MB from Mendeley Data (CC BY 4.0) -> ml/data/raw/arnesano
-python ml/scripts/prepare_data.py         # -> ml/data/processed (+ dataset_manifest.json)
-python ml/scripts/train_models.py         # -> ml/models/*.joblib, ml/reports/metrics.json
+Backend settings are environment variables: `DEVICE_API_KEY`, `DATABASE_URL`, `CORS_ORIGINS`, `CONTROL_LOOP_SECONDS`,
+`SIMULATOR_SECONDS`, `HARDWARE_MODE` (`simulated` by default, `device` for a real pump) and `WEATHER_TTL_SECONDS`.
+The farm location (default: Assam, 24.6848 N, 92.7510 E) and all safety limits are changed in the Settings page.
+
+## Dataset and models
+
+Training data is the public Mendeley dataset *Soil Moisture, Irrigation Actuator and Weather Dataset from a Multi-Sector
+Precision-Irrigation* (Adamo, Colizzi, Dimauro, Guerriero, Lomonte), collected near Arnesano, Italy in 2025.
+DOI 10.17632/c837v6p8ph.2, licence CC BY 4.0. Only the two open-field tomato sectors are used. Water volumes in it are valve time multiplied by
+a flow rate, not metered, and the models inherit that limitation.
+
+Results on held-out data (time-ordered splits, fixed seed, no hyper-parameter search):
+
+| Model | Result |
+|---|---|
+| Irrigation needed (classifier) | F1 0.23, recall 0.38, ROC-AUC 0.76. A plain "moisture below 40 %" rule scores F1 0.14. |
+| Water per event (regressor) | MAE about 57 L, R² 0.03. Weak: treat it as a rough guide next to the FAO-56 figure. |
+| Moisture forecast | Beats "same as now" at 1, 6 and 24 h. The 12 h horizon has only 18 test rows and is not reliable. |
+
+These numbers are modest and are shown as they are on the Model Performance page. The models learned from one Italian farm, so predictions for another
+climate are an extrapolation.
+
+To retrain: `python ml/scripts/download_dataset.py`, then `prepare_data.py`, then `train_models.py`. Trained models and `ml/reports/metrics.json` are already in the repo.
+
+## Control and safety
+
+Modes: `manual`, `sensor_auto`, `ai_recommend` (never switches the pump) and `ai_auto`. These checks apply to every automatic start and stop,
+and the ML output cannot bypass them: emergency stop, maximum runtime (30 min by default, also applied to manual runs), stale or invalid sensor data,
+a saturation limit, and a minimum rest time between runs. A physical pump will also refuse to start on simulated sensor data.
+
+## Connecting the real hardware
+
+The ESP32 sends readings to `POST /api/sensors/readings` (header `X-API-Key`) and polls `GET /api/device/command` every few seconds.
+Every pump-on command is a short lease, so if the Wi-Fi or the server goes away the relay switches off by itself.
+Wiring, calibration and setup are in [docs/HARDWARE.md](docs/HARDWARE.md); the sketch is [firmware/esp32_pump_controller.ino](firmware/esp32_pump_controller.ino).
+The hardware path has been tested in software only. Test with the pump disconnected first.
+
+Reading payload:
+
+```json
+{"device_id": "esp32-zone1", "soil_moisture": 41.5, "air_temp": 27.3, "humidity": 58.0, "soil_temp": 24.1,
+ "timestamp": "2026-06-01T10:15:00Z", "rainfall": 0.0}
 ```
-Fixed seed, no hyper-parameter search. Results are in `docs/FINAL_IMPLEMENTATION_REPORT.md` and the *Model Performance* page.
+
+## Uploading your own data
+
+On the Predict Your Data page, upload a CSV or JSON file (up to 5,000 rows, 3 MB). Needed: soil moisture, air temperature, humidity.
+Optional: soil temperature, timestamp, rainfall, wind speed, solar radiation, irrigation minutes. Common column names are recognised automatically.
+Soil moisture can be a percentage, or raw sensor counts (above 100, high = dry), which are converted with 100 x (1 - raw / 1023).
+Rows with impossible values are reported and not predicted. A template is available from the page.
 
 ## Tests
+
 ```bash
-cd backend && python -m pytest -q        # 38 tests: dataset/preprocessing, saved models, API, DB, invalid/missing data, weather outage, pump safety
+cd backend && python -m pytest -q          # 38 tests: data, models, API, weather outage, pump safety
 cd frontend && npx tsc -b && npm run build
 ```
 
-## Dataset
-**Soil Moisture, Irrigation Actuator and Weather Dataset from a Multi-Sector Precision-Irrigation** — Adamo, Colizzi, Dimauro, Guerriero, Lomonte
-(Univ. of Salento / Univ. of Bari). Arnesano (Lecce, Italy), Feb–Sep 2025. DOI [10.17632/c837v6p8ph.2](https://data.mendeley.com/datasets/c837v6p8ph/2),
-**CC BY 4.0** (attribution required). Used: open-field tomato sectors 1 and 2. Details, record counts and caveats: `ml/data/processed/dataset_manifest.json`.
+## Deployment
 
-## API (selection; full schema at `/docs`)
-| Method & path | Purpose |
-|---|---|
-| `POST /api/sensors/readings` | ESP32 ingestion (`X-API-Key`), stored as `device` |
-| `GET /api/sensors/latest`, `/api/sensors/readings?hours=24&source=` | Latest/history for the active source |
-| `GET /api/predictions/current` | All predictions for the latest reading (cached a few seconds, read-only; used by the dashboard) |
-| `POST /api/predictions/run` | Compute + store irrigation, water, forecast (+ FAO-56 calc) |
-| `POST /api/predictions/batch` | Predict every row of an uploaded CSV (`{"csv": "..."}`; template at `GET /api/predictions/batch/template`) |
-| `GET /api/predictions/{irrigation,water,forecast,history}` | Compute-only / stored predictions |
-| `GET /api/irrigation/status`, `/history` | Pump + limits / event log |
-| `POST /api/irrigation/{start,stop,emergency-stop,emergency-reset}` | Manual control (always available; capped runtime) |
-| `POST /api/control/evaluate` | One control-loop iteration (also runs every 30 s) |
-| `GET/PUT /api/farm` | Farm configuration, coordinates, mode, safety limits |
-| `GET /api/models/performance`, `/api/dataset/info`, `/api/health` | Metrics, dataset info, health |
+`render.yaml` describes one Docker web service that serves the API and the built dashboard. Every push to `main` redeploys it, and GitHub Actions runs the tests.
+On the free plan the service sleeps when idle and the SQLite database resets on each deploy; demo history is regenerated as simulated data.
+Use a persistent disk or a hosted database for real data. Set `DEVICE_API_KEY` in the Render dashboard.
 
-## Simulated mode
-Default `sensor_source = simulated`. Use *Live Sensors → Backfill 48 h / Add one reading*, or let the background generator run.
-Simulated rows are stored with `source="simulated"`, shown with an orange **SIMULATED** badge everywhere, and are never mixed with device data;
-only the source chosen in *Settings* drives predictions and control. The pump is always a **simulated pump**.
+## Known limits
 
-## Control modes and safety
-Modes: `manual`, `sensor_auto` (start < start threshold, stop ≥ stop threshold), `ai_recommend` (never actuates), `ai_auto` (ML must agree *and* moisture must be below the stop threshold; falls back to the sensor rule if ML is unavailable).
-Gates that apply to every automatic start/stop and that ML cannot bypass: emergency stop, maximum runtime (also caps manual runs), invalid/stale sensor data
-(running automatic irrigation is stopped fail-safe), saturation gate, minimum rest period. Manual start/stop remains available (except during emergency stop).
+- Models are trained on Italian data; the water-volume model in particular is weak.
+- Weather solar radiation is estimated when Open-Meteo is unavailable.
+- No flow meter: litres are runtime times a configured flow rate.
+- The dashboard has no login; anyone with the link can see it and use manual controls on a deployed instance.
 
-## Future ESP32 integration
-Send every N minutes:
-```http
-POST /api/sensors/readings
-X-API-Key: <DEVICE_API_KEY>
-{"device_id":"esp32-zone1","soil_moisture":41.5,"air_temp":27.3,"humidity":58.0,"soil_temp":24.1,
- "timestamp":"2026-06-01T10:15:00Z","rainfall":0.0}
-```
-`timestamp` and `rainfall` are optional. Out-of-range values are stored but flagged invalid and never used. Then set *Sensor source = Physical device* in Settings.
-Calibrate the capacitive probe to the dataset's 0–100 % relative scale before using thresholds or ML. Physical pump control is intentionally disabled:
-`backend/app/hardware.py` contains the adapter interface and an `Esp32Pump` placeholder that refuses to run until real hardware configuration (relay endpoint, fail-closed wiring) is implemented.
+## Credits
 
-## Deployment (Render, auto-updating)
-`render.yaml` defines one Docker web service (API + built dashboard). Connect the repository once at
-https://render.com/deploy?repo=https://github.com/SOUMO96/smart-tomato-irrigation and every push to `main` redeploys the site
-(tests and build also run in GitHub Actions). On the free plan the service sleeps when idle (first load takes about a minute) and the SQLite
-database resets on each deploy; demo history is re-seeded as clearly-labelled simulated data. Use a persistent disk or a hosted database for real data.
-Set `DEVICE_API_KEY` in the Render dashboard (generated automatically) and use it in the ESP32 firmware.
-
-## CSV format for "Predict Your Data"
-Header row plus one row per measurement. Required: soil moisture (%, 0-100), air temperature (°C), humidity (%), soil temperature (°C).
-Optional: timestamp (e.g. `2026-06-01 10:00`; needed for hour-of-day, past-moisture, rain and irrigation features), rainfall (mm per row interval), wind speed (km/h),
-solar radiation (W/m²), irrigation minutes (pump minutes per row interval). Common column names are matched automatically. Limit 5,000 rows / 3 MB.
-Soil moisture must be on the dataset's relative 0-100 probe scale. A template is available from the page or `GET /api/predictions/batch/template`.
+Dataset: Adamo et al., Mendeley Data, CC BY 4.0. Weather: Open-Meteo, MET Norway, NASA POWER.
